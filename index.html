@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Bar Chaos 🍹</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ── Canvas: game rendering ──────────────────────────── -->
+  <canvas id="canvas"></canvas>
+
+  <!-- ── UI overlay: state screens ──────────────────────── -->
+  <div id="ui">
+
+    <!-- ── Main Menu ──────────────────────────────────────── -->
+    <div id="screen-mainMenu" class="screen">
+      <div class="menu-logo">
+        <div class="logo-text">BAR<span>CHAOS</span></div>
+        <div class="logo-sub">A Co-op Bartending Adventure</div>
+      </div>
+      <nav class="main-nav">
+        <button class="nav-btn" onclick="Main.setState('levelSelect')">
+          🎮 Campaign
+        </button>
+        <button class="nav-btn" onclick="Main.setState('trainingSelect')">
+          📚 Training Mode
+        </button>
+        <button class="nav-btn highlight" onclick="Main.setState('menuStudy')">
+          🍹 Drink Menu
+        </button>
+        <button class="nav-btn" onclick="Main.setState('settings')">
+          ⚙ Settings
+        </button>
+      </nav>
+      <div class="menu-hint">
+        <span>P1: WASD + E</span>
+        <span>P2: Arrows + /</span>
+      </div>
+    </div>
+
+    <!-- ── Level Select ───────────────────────────────────── -->
+    <div id="screen-levelSelect" class="screen">
+      <div class="screen-title">Select Level</div>
+      <div id="level-cards" class="level-grid"></div>
+      <button class="btn-back" onclick="Main.setState('mainMenu')">◀ Back</button>
+    </div>
+
+    <!-- ── Campaign HUD (minimal overlay) ─────────────────── -->
+    <div id="screen-campaign" class="screen hud-screen">
+      <!-- Canvas handles all campaign rendering; just show ESC hint -->
+      <div class="esc-hint">ESC = Menu &nbsp;|&nbsp; ENTER = Confirm</div>
+    </div>
+
+    <!-- ── Training Select ────────────────────────────────── -->
+    <div id="screen-trainingSelect" class="screen">
+      <div class="screen-header">
+        <div class="screen-title">Training Mode</div>
+        <div class="screen-sub">Master each drink step by step, then take a quiz!</div>
+        <button class="btn-back" onclick="Main.setState('mainMenu')">◀ Back</button>
+      </div>
+      <div id="training-grid" class="training-select-grid"></div>
+    </div>
+
+    <!-- ── Training Mode ──────────────────────────────────── -->
+    <div id="screen-training" class="screen training-screen">
+      <!-- Left: canvas animation (Training.render draws here) -->
+      <div class="training-canvas-area"><!-- canvas renders into global canvas --></div>
+      <!-- Right: HTML step panel -->
+      <div class="training-right">
+        <button class="btn-back small" onclick="Main.setState('trainingSelect')">◀ Choose Drink</button>
+        <div id="training-panel" class="training-panel"></div>
+      </div>
+    </div>
+
+    <!-- ── Menu Study ─────────────────────────────────────── -->
+    <div id="screen-menuStudy" class="screen">
+      <div class="study-header">
+        <div class="study-title">🍹 Drink Menu</div>
+        <div class="study-controls">
+          <input id="study-search" type="text" placeholder="Search drinks or ingredients…"
+            oninput="Main.refreshStudyGrid('all', this.value)">
+          <div class="cat-filters">
+            <button onclick="Main.refreshStudyGrid('all')" class="cat-btn active">All</button>
+            <button onclick="Main.refreshStudyGrid('build')" class="cat-btn">Build</button>
+            <button onclick="Main.refreshStudyGrid('shake')" class="cat-btn">Shake</button>
+            <button onclick="Main.refreshStudyGrid('blend')" class="cat-btn">Blend</button>
+            <button onclick="Main.refreshStudyGrid('muddle')" class="cat-btn">Muddle</button>
+          </div>
+          <button class="btn-add" onclick="Main.addDrink()">+ Add Drink</button>
+          <button class="btn-back" onclick="Main.setState('mainMenu')">◀ Back</button>
+        </div>
+      </div>
+      <div id="study-grid" class="study-grid"></div>
+    </div>
+
+    <!-- ── Settings ───────────────────────────────────────── -->
+    <div id="screen-settings" class="screen">
+      <div class="screen-title">Settings</div>
+      <div class="settings-box">
+        <h3>Controls</h3>
+        <table class="ctrl-table">
+          <tr><td>Move</td><td>W A S D  or  Arrow Keys</td></tr>
+          <tr><td>Interact / Pick up</td><td>E</td></tr>
+          <tr><td>Pause / Menu</td><td>ESC</td></tr>
+          <tr><td>Mobile</td><td>On-screen D-pad + USE button</td></tr>
+        </table>
+        <h3>Game Tips</h3>
+        <ul class="tips-list">
+          <li>Pick up a glass first, then follow the step indicators on the order ticket.</li>
+          <li>Glowing stations show where to go next for your current drink.</li>
+          <li>Use the PASS counter (centre) to hand drinks between players.</li>
+          <li>Shake & Blend take ~1.5 seconds – plan ahead!</li>
+          <li>Faster service = bigger tips and bonus points.</li>
+        </ul>
+        <button class="btn-primary" onclick="if(confirm('Reset ALL data?')){localStorage.clear();location.reload();}">
+          Reset All Data
+        </button>
+      </div>
+      <button class="btn-back" onclick="Main.setState('mainMenu')">◀ Back</button>
+    </div>
+
+  </div><!-- #ui -->
+
+  <!-- ── Touch D-pad (shown only during campaign) ─────────── -->
+  <div id="touch-controls" class="touch-controls">
+    <div class="dpad">
+      <div></div>
+      <button class="dpad-btn" ontouchstart="Main.touchStart('up')"   ontouchend="Main.touchEnd('up')"   onmousedown="Main.touchStart('up')"   onmouseup="Main.touchEnd('up')">▲</button>
+      <div></div>
+      <button class="dpad-btn" ontouchstart="Main.touchStart('left')" ontouchend="Main.touchEnd('left')" onmousedown="Main.touchStart('left')" onmouseup="Main.touchEnd('left')">◀</button>
+      <div></div>
+      <button class="dpad-btn" ontouchstart="Main.touchStart('right')"ontouchend="Main.touchEnd('right')"onmousedown="Main.touchStart('right')"onmouseup="Main.touchEnd('right')">▶</button>
+      <div></div>
+      <button class="dpad-btn" ontouchstart="Main.touchStart('down')" ontouchend="Main.touchEnd('down')" onmousedown="Main.touchStart('down')" onmouseup="Main.touchEnd('down')">▼</button>
+      <div></div>
+    </div>
+    <button class="interact-btn"
+      ontouchstart="Main.touchInteract()" onmousedown="Main.touchInteract()">USE<br><small>E</small></button>
+  </div>
+
+  <!-- ── Drink Detail Modal ──────────────────────────────── -->
+  <div id="modal-detail" class="modal-overlay" onclick="if(event.target===this)Main.closeModal()">
+  </div>
+
+  <!-- ── Drink Edit Modal ────────────────────────────────── -->
+  <div id="modal-edit" class="modal-overlay" onclick="if(event.target===this)Main.closeModal()">
+  </div>
+
+  <!-- ── Scripts (load order matters) ───────────────────── -->
+  <script src="js/storage.js"></script>
+  <script src="js/training.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+
+</body>
+</html>
