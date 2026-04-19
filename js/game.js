@@ -1181,21 +1181,8 @@ const Game = (() => {
       ctx.fillText('♥',cx+cw-14-i*22,cy+18);
     }
 
-    // ── Build log (left column) ───────────────────────────
-    const logX=cx+10, logY=cy+46, logW=160;
-    ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(logX,logY,logW,ch-56);
-    ctx.fillStyle='#C8A040'; ctx.font='bold 9px monospace'; ctx.textAlign='left'; ctx.textBaseline='top';
-    ctx.fillText('BUILD LOG:', logX+6, logY+6);
-    mg.buildLog.forEach((entry,i)=>{
-      ctx.fillStyle='#6EE7B7'; ctx.font='8px monospace';
-      ctx.fillText('✓ '+entry, logX+6, logY+22+i*14);
-    });
-    // Current step pending
-    ctx.fillStyle='#FFD700'; ctx.font='bold 8px monospace';
-    ctx.fillText('▶ '+mg.cur.text.substring(0,22), logX+6, logY+22+mg.buildLog.length*14);
-
-    // ── Right panel ───────────────────────────────────────
-    const panX=cx+logW+18, panW=cw-logW-28;
+    // ── Full-width panel (no build log — would give away the answer) ──
+    const panX=cx+10, panW=cw-20;
 
     if(mg.phase==='ingredient'){
       drawIngredientPhase(mg, panX, cy+46, panW, ch-56);
@@ -1267,21 +1254,18 @@ const Game = (() => {
   }
 
   function drawAmountPhase(mg, panX, panY, panW, panH){
-    ctx.fillStyle='#C8A040'; ctx.font='bold 11px monospace'; ctx.textAlign='left'; ctx.textBaseline='top';
-    ctx.fillText(`How much ${mg.selectedIng}?`, panX, panY+6);
+    ctx.fillStyle='#C8A040'; ctx.font='bold 13px monospace'; ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText(`How much ${mg.selectedIng}?`, panX+panW/2, panY+6);
 
-    // Jigger visual (left)
-    const jx=panX+50, jy=panY+50;
-    drawJigger(jx, jy, mg.correctAmt);
-
-    // Amount buttons (right)
-    const btnX=panX+panW-170;
-    ctx.fillStyle='#8B6040'; ctx.font='bold 10px monospace'; ctx.textAlign='left'; ctx.textBaseline='top';
-    ctx.fillText('Select amount:', btnX, panY+28);
+    // Centred 2×2 grid of amount buttons
+    const cols=2, bw=160, bh=60, gapX=20, gapY=16;
+    const totalW=cols*bw+(cols-1)*gapX;
+    const btnStartX=panX+(panW-totalW)/2;
+    const btnStartY=panY+46;
 
     (mg.amtOptions||[]).forEach((opt,i)=>{
-      const bx=btnX, by=panY+46+i*58;
-      const bw=148, bh=44;
+      const col=i%cols, row=Math.floor(i/cols);
+      const bx=btnStartX+col*(bw+gapX), by=btnStartY+row*(bh+gapY);
       prect(bx,by,bw,bh,'#1A0A00',opt===mg.correctAmt&&mg.feedback==='wrong'?'#6EE7B7':'#4A2A00',2);
       ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.fillRect(bx,by,bw,3);
       // Key hint
