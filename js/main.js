@@ -30,6 +30,23 @@ const Main = (() => {
     window.addEventListener('resize',  onResize);
     onResize();
 
+    canvas.addEventListener('click', e => {
+      if (gameState !== 'campaign') return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = CANVAS_W / rect.width;
+      const scaleY = CANVAS_H / rect.height;
+      Game.handleClick((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
+    });
+    canvas.addEventListener('touchend', e => {
+      if (gameState !== 'campaign') return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = CANVAS_W / rect.width;
+      const scaleY = CANVAS_H / rect.height;
+      const touch = e.changedTouches[0];
+      Game.handleClick((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
+    }, { passive: false });
+
     buildMenuStudyUI();
     setState('mainMenu');
     requestAnimationFrame(loop);
@@ -87,7 +104,7 @@ const Main = (() => {
   // ── State machine ────────────────────────────────────────
   const SCREENS = ['mainMenu','levelSelect',
                    'campaign','trainingSelect','training',
-                   'menuStudy','settings'];
+                   'menuStudy','settings','shop'];
 
   function setState(s, opts = {}) {
     gameState = s;
@@ -101,7 +118,7 @@ const Main = (() => {
     if (tc) tc.classList.toggle('visible', s === 'campaign');
 
     if (s === 'campaign') {
-      Game.startLevel(opts.level || currentLevel);
+      Game.startLevel(opts.level || currentLevel, { keepUpgrades: !!opts.keepUpgrades });
     }
     if (s === 'training' && opts.drinkId) {
       Training.startDrink(opts.drinkId);
@@ -111,6 +128,10 @@ const Main = (() => {
     }
     if (s === 'trainingSelect') {
       refreshTrainingSelect();
+    }
+    if (s === 'shop') {
+      refreshShop('passives');
+      startAvatarLoop();
     }
     if (s === 'levelSelect') {
       refreshLevelSelect();
@@ -123,16 +144,59 @@ const Main = (() => {
 
     if (gameState === 'campaign') {
       Game.handleKeyDown(e.key);
-      if (e.key === 'Escape') setState('mainMenu');
-      if (e.key === 'Enter' && Game.getPhase() === 'done') {
-        if (Game.isLevelPassed() && currentLevel < Game.getLevelCount()) {
-          currentLevel++;
+      if (e.key === 'Escape') { setState('mainMenu'); return; }
+
+      if (e.key === 'Enter') {
+        const phase = Game.getPhase();
+        const passed = Game.isLevelPassed();
+
+        if (phase === 'done' && passed) {
+          // Wait until upgrade has been picked (or skip if no upgrade shown)
+          if (!Game.isUpgradePicked()) return;
+          if (currentLevel < Game.getLevelCount()) currentLevel++;
+          else { setState('levelSelect'); return; }
+          setState('campaign', { level: currentLevel, keepUpgrades: true });
+        } else if (phase === 'done' || phase === 'failed') {
+          // Retry same level, keep any upgrades earned so far
+          setState('campaign', { level: currentLevel, keepUpgrades: true });
         }
-        setState('levelSelect');
       }
+      return;
     }
-    if (gameState === 'training' && e.key === 'Escape') setState('trainingSelect');
-    if (gameState === 'menuStudy'  && e.key === 'Escape') setState('mainMenu');
+
+    // Menu keyboard navigation
+    if (gameState === 'mainMenu') {
+      navigateMenu(e.key, '#screen-mainMenu .nav-btn');
+      return;
+    }
+    if (gameState === 'levelSelect') {
+      if (e.key === 'Escape') setState('mainMenu');
+      navigateMenu(e.key, '#screen-levelSelect .lv-card');
+      return;
+    }
+
+    if (gameState === 'training'      && e.key === 'Escape') { setState('trainingSelect'); return; }
+    if (gameState === 'trainingSelect'&& e.key === 'Escape') { setState('mainMenu'); return; }
+    if (gameState === 'menuStudy'     && e.key === 'Escape') { setState('mainMenu'); return; }
+    if (gameState === 'settings'      && e.key === 'Escape') { setState('mainMenu'); return; }
+    if (gameState === 'shop'          && e.key === 'Escape') { setState('mainMenu'); return; }
+    if (gameState === 'levelSelect'   && e.key === 'Escape') { setState('mainMenu'); return; }
+  }
+
+  // Simple focus-based keyboard navigation for HTML button lists
+  let menuFocusIdx = 0;
+  function navigateMenu(key, selector) {
+    const items = [...document.querySelectorAll(selector)];
+    if (!items.length) return;
+    if (key === 'ArrowDown' || key === 's') {
+      menuFocusIdx = (menuFocusIdx + 1) % items.length;
+      items[menuFocusIdx].focus();
+    } else if (key === 'ArrowUp' || key === 'w') {
+      menuFocusIdx = (menuFocusIdx - 1 + items.length) % items.length;
+      items[menuFocusIdx].focus();
+    } else if (key === 'Enter' || key === ' ') {
+      items[menuFocusIdx]?.click();
+    }
   }
 
   // ── Build Study UI (runs once) ───────────────────────────
@@ -437,6 +501,162 @@ const Main = (() => {
   function touchEnd(dir)   { keys['touch_' + dir] = false; }
   function touchInteract() { Game.handleKeyDown('touch_interact'); }
 
+  // ── Bartender Shop ───────────────────────────────────────
+  let currentShopTab = 'passives';
+  let avatarLoopId = null;
+  let previewCosmetics = {};
+
+  function shopTab(tab) {
+    currentShopTab = tab;
+    document.querySelectorAll('.shop-tab').forEach(b => b.classList.remove('active'));
+    const tabEl = document.getElementById('tab-' + tab) || document.querySelector('.shop-tab');
+    if (tabEl) tabEl.classList.add('active');
+    refreshShop(tab);
+  }
+
+  function refreshShop(tab) {
+    tab = tab || currentShopTab;
+    currentShopTab = tab;
+    const grid = document.getElementById('shop-grid');
+    if (!grid) return;
+    const tips = Storage.getTips();
+    document.getElementById('shop-tips').textContent = tips;
+
+    const items = Storage.getShopItems().filter(i =>
+      tab === 'passives' ? i.type === 'passive' : (i.type === 'cosmetic' && i.slot === tab)
+    );
+    const purchased = items.map(i => Storage.hasPurchased(i.id));
+    const equipped  = Storage.getEquipped();
+
+    grid.innerHTML = items.map((item, idx) => {
+      if (item.type === 'passive') {
+        // ── Passive: 5-level progression card ──
+        const level    = Storage.getPassiveLevel(item.id);
+        const maxLevel = Storage.PASSIVE_MAX;
+        const isMax    = level >= maxLevel;
+        const nextCost = isMax ? 0 : Storage.passiveLevelCost(item, level + 1);
+        const canUpg   = !isMax && tips >= nextCost;
+        const stars    = '★'.repeat(level) + '☆'.repeat(maxLevel - level);
+        // Per-level effect description
+        const effectDesc = {
+          p_lucky: `+${level} Lucky Pour${level!==1?'s':''} per run`,
+          p_heart: `+${level} max heart${level!==1?'s':''}`,
+          p_speed: `+${Math.round((Math.pow(1.15,level)-1)*100)}% speed`,
+          p_tips:  `+${Math.round((Math.pow(1.25,level)-1)*100)}% DKK tips`,
+          p_hint:  `Hints after ${Math.max(1, 5 - level*0.8).toFixed(1)}s`,
+          p_time:  `+${level*20}s per level`,
+        }[item.id] || '';
+        return `
+          <div class="shop-item passive-item ${isMax?'maxed':''}" style="border-color:${item.color}"
+               onmouseenter="Main.shopPreview('${item.id}')" onmouseleave="Main.shopPreview(null)">
+            <div class="si-icon" style="color:${item.color}">${item.icon || '⬆'}</div>
+            <div class="si-name">${item.name}</div>
+            <div class="si-desc">${item.desc}</div>
+            <div class="si-stars" style="color:${item.color}">${stars}</div>
+            <div class="si-level-row">
+              <span class="si-level-label">Lv ${level}/${maxLevel}</span>
+              ${level > 0 ? `<span class="si-effect" style="color:${item.color}">${effectDesc}</span>` : ''}
+            </div>
+            <div class="si-price" style="color:${isMax?'var(--muted)':canUpg?item.color:'var(--muted)'}">
+              ${isMax ? '✦ MAX LEVEL' : `💰 ${nextCost} DKK`}
+            </div>
+            <div class="si-actions">
+              ${!isMax ? `<button class="btn-buy ${canUpg?'':'disabled'}" onclick="Main.shopBuy('${item.id}')">
+                ${level===0 ? 'Unlock' : 'Upgrade'}
+              </button>` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      // ── Cosmetic card ──
+      const owned   = purchased[idx];
+      const isEquip = owned && equipped[item.slot] === item.id;
+      const canBuy  = !owned && tips >= item.price;
+      return `
+        <div class="shop-item ${owned?'owned':''} ${isEquip?'equipped':''}"
+             style="border-color:${item.color}"
+             onmouseenter="Main.shopPreview('${item.id}')"
+             onmouseleave="Main.shopPreview(null)">
+          <div class="si-icon" style="color:${item.color}">${item.icon || '🎨'}</div>
+          <div class="si-name">${item.name}</div>
+          <div class="si-desc">${item.desc || ''}</div>
+          <div class="si-price" style="color:${item.color}">
+            ${owned ? (isEquip ? '✓ Equipped' : '✓ Owned') : `💰 ${item.price} DKK`}
+          </div>
+          <div class="si-actions">
+            ${owned && !isEquip ? `<button class="btn-equip" onclick="Main.shopEquip('${item.slot}','${item.id}')">Equip</button>` : ''}
+            ${owned &&  isEquip ? `<button class="btn-equip unequip" onclick="Main.shopUnequip('${item.slot}')">Unequip</button>` : ''}
+            ${!owned ? `<button class="btn-buy ${canBuy?'':'disabled'}" onclick="Main.shopBuy('${item.id}')">${canBuy?'Buy':'Not enough DKK'}</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function shopPreview(itemId) {
+    if (!itemId) {
+      previewCosmetics = {};
+      document.getElementById('avatar-preview-label').textContent = '';
+    } else {
+      const item = Storage.getShopItems().find(i => i.id === itemId);
+      if (item && item.type === 'cosmetic') {
+        previewCosmetics = { [item.slot]: itemId };
+        document.getElementById('avatar-preview-label').textContent = `Preview: ${item.name}`;
+      } else {
+        previewCosmetics = {};
+        document.getElementById('avatar-preview-label').textContent = itemId ? (Storage.getShopItems().find(i=>i.id===itemId)?.name || '') : '';
+      }
+    }
+  }
+
+  function shopBuy(itemId) {
+    const item = Storage.getShopItems().find(i => i.id === itemId);
+    if (!item) return;
+    if (item.type === 'passive') {
+      if (!Storage.upgradePassive(itemId)) {
+        // upgradePassive returns false if maxed or insufficient tips — no alert needed, UI shows it
+      }
+      refreshShop(currentShopTab);
+      return;
+    }
+    // Cosmetic — buy once
+    if (Storage.hasPurchased(itemId)) return;
+    if (!Storage.spendTips(item.price)) return;
+    Storage.purchaseItem(itemId);
+    Storage.equipItem(item.slot, itemId);
+    refreshShop(currentShopTab);
+  }
+
+  function shopEquip(slot, itemId) {
+    Storage.equipItem(slot, itemId);
+    refreshShop(currentShopTab);
+  }
+
+  function shopUnequip(slot) {
+    Storage.unequipItem(slot);
+    refreshShop(currentShopTab);
+  }
+
+  function startAvatarLoop() {
+    const canvas = document.getElementById('avatar-canvas');
+    if (!canvas) return;
+    const ctx2 = canvas.getContext('2d');
+    if (avatarLoopId) cancelAnimationFrame(avatarLoopId);
+    function frame() {
+      if (gameState !== 'shop') { avatarLoopId = null; return; }
+      ctx2.clearRect(0, 0, 160, 240);
+      ctx2.fillStyle = '#1A0A00';
+      ctx2.fillRect(0, 0, 160, 240);
+      // Draw floor
+      ctx2.fillStyle = '#2A1800';
+      ctx2.fillRect(0, 180, 160, 60);
+      Game.drawAvatarPreview(ctx2, 80, 160, 3.2, previewCosmetics);
+      avatarLoopId = requestAnimationFrame(frame);
+    }
+    avatarLoopId = requestAnimationFrame(frame);
+  }
+
   // ── Expose public API ────────────────────────────────────
   return {
     boot, setState,
@@ -445,6 +665,7 @@ const Main = (() => {
     saveDrinkForm, addIngRow, addStepRow,
     refreshStudyGrid, selectLevel,
     touchStart, touchEnd, touchInteract,
+    shopTab, shopBuy, shopEquip, shopUnequip, shopPreview,
   };
 })();
 

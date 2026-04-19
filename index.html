@@ -33,6 +33,9 @@
         <button class="nav-btn" onclick="Main.setState('settings')">
           ⚙ Settings
         </button>
+        <button class="nav-btn" onclick="Main.setState('shop')">
+          🛒 Bartender Shop
+        </button>
       </nav>
       <div class="menu-hint">
         <span>P1: WASD + E</span>
@@ -121,20 +124,43 @@
       <button class="btn-back" onclick="Main.setState('mainMenu')">◀ Back</button>
     </div>
 
+    <!-- ── Bartender Shop ───────────────────────────────────── -->
+    <div id="screen-shop" class="screen">
+      <div class="shop-header">
+        <div class="shop-title">🛒 Bartender Shop</div>
+        <div class="shop-tips-display">💰 <span id="shop-tips">0</span> DKK</div>
+        <button class="btn-back" onclick="Main.setState('mainMenu')">◀ Back</button>
+      </div>
+      <div class="shop-layout">
+        <!-- Avatar preview panel -->
+        <div class="shop-avatar-panel">
+          <div class="avatar-label">YOUR BARTENDER</div>
+          <canvas id="avatar-canvas" width="160" height="240"></canvas>
+          <div id="avatar-preview-label" class="avatar-preview-label"></div>
+          <div class="avatar-hint">Hover an item to preview</div>
+        </div>
+        <!-- Shop items panel -->
+        <div class="shop-items-panel">
+          <div class="shop-tabs">
+            <button class="shop-tab active" id="tab-passives"   onclick="Main.shopTab('passives')">Upgrades</button>
+            <button class="shop-tab"         id="tab-hat"       onclick="Main.shopTab('hat')">Hats</button>
+            <button class="shop-tab"         id="tab-apron"     onclick="Main.shopTab('apron')">Aprons</button>
+            <button class="shop-tab"         id="tab-acc"       onclick="Main.shopTab('acc')">Accessories</button>
+          </div>
+          <div id="shop-grid" class="shop-grid"></div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- #ui -->
 
   <!-- ── Touch D-pad (shown only during campaign) ─────────── -->
   <div id="touch-controls" class="touch-controls">
     <div class="dpad">
-      <div></div>
-      <button class="dpad-btn" ontouchstart="Main.touchStart('up')"   ontouchend="Main.touchEnd('up')"   onmousedown="Main.touchStart('up')"   onmouseup="Main.touchEnd('up')">▲</button>
-      <div></div>
-      <button class="dpad-btn" ontouchstart="Main.touchStart('left')" ontouchend="Main.touchEnd('left')" onmousedown="Main.touchStart('left')" onmouseup="Main.touchEnd('left')">◀</button>
-      <div></div>
-      <button class="dpad-btn" ontouchstart="Main.touchStart('right')"ontouchend="Main.touchEnd('right')"onmousedown="Main.touchStart('right')"onmouseup="Main.touchEnd('right')">▶</button>
-      <div></div>
-      <button class="dpad-btn" ontouchstart="Main.touchStart('down')" ontouchend="Main.touchEnd('down')" onmousedown="Main.touchStart('down')" onmouseup="Main.touchEnd('down')">▼</button>
-      <div></div>
+      <button class="dpad-btn dpad-up"    ontouchstart="Main.touchStart('up')"    ontouchend="Main.touchEnd('up')"    onmousedown="Main.touchStart('up')"    onmouseup="Main.touchEnd('up')">▲</button>
+      <button class="dpad-btn dpad-left"  ontouchstart="Main.touchStart('left')"  ontouchend="Main.touchEnd('left')"  onmousedown="Main.touchStart('left')"  onmouseup="Main.touchEnd('left')">◀</button>
+      <button class="dpad-btn dpad-right" ontouchstart="Main.touchStart('right')" ontouchend="Main.touchEnd('right')" onmousedown="Main.touchStart('right')" onmouseup="Main.touchEnd('right')">▶</button>
+      <button class="dpad-btn dpad-down"  ontouchstart="Main.touchStart('down')"  ontouchend="Main.touchEnd('down')"  onmousedown="Main.touchStart('down')"  onmouseup="Main.touchEnd('down')">▼</button>
     </div>
     <button class="interact-btn"
       ontouchstart="Main.touchInteract()" onmousedown="Main.touchInteract()">USE<br><small>E</small></button>

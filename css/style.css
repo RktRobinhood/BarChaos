@@ -747,10 +747,10 @@ input, select, textarea { font-family: var(--font); }
 .dpad-btn:active { background: rgba(255,215,0,0.4); }
 
 /* Place up, left, right, down correctly in the 3×3 grid */
-.dpad-btn:nth-child(2)  { grid-column: 2; grid-row: 1; }
-.dpad-btn:nth-child(3)  { grid-column: 1; grid-row: 2; }
-.dpad-btn:nth-child(4)  { grid-column: 3; grid-row: 2; }
-.dpad-btn:nth-child(5)  { grid-column: 2; grid-row: 3; }
+.dpad-up    { grid-column: 2; grid-row: 1; }
+.dpad-left  { grid-column: 1; grid-row: 2; }
+.dpad-right { grid-column: 3; grid-row: 2; }
+.dpad-down  { grid-column: 2; grid-row: 3; }
 
 .interact-btn {
   width: 90px; height: 90px;
@@ -775,3 +775,129 @@ input, select, textarea { font-family: var(--font); }
 ::-webkit-scrollbar-track { background: var(--bg2); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #2a4060; }
+
+/* ── Bartender Shop ──────────────────────────────────────── */
+.shop-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 10px 20px 6px;
+  flex-shrink: 0;
+}
+.shop-title { font-size: 22px; font-weight: bold; color: var(--gold); }
+.shop-tips-display { font-size: 14px; color: var(--green); margin-left: auto; }
+
+.shop-layout {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  flex: 1;
+  overflow: hidden;
+  padding: 0 20px 16px;
+}
+
+.shop-avatar-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 180px;
+  flex-shrink: 0;
+}
+.avatar-label { font-size: 11px; color: var(--muted); letter-spacing: 2px; }
+#avatar-canvas {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  image-rendering: pixelated;
+}
+.avatar-preview-label { font-size: 11px; color: var(--gold); min-height: 16px; text-align: center; }
+.avatar-hint { font-size: 10px; color: var(--muted); text-align: center; }
+
+.shop-items-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.shop-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+.shop-tab {
+  padding: 6px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.15s;
+}
+.shop-tab.active, .shop-tab:hover {
+  background: var(--bg2);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 4px;
+  flex: 1;
+}
+
+.shop-item {
+  background: var(--bg3);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transition: transform 0.12s, border-color 0.12s;
+  cursor: default;
+}
+.shop-item:hover { transform: translateY(-2px); }
+.shop-item.equipped { background: #0a1a0a; }
+
+.si-icon { font-size: 28px; }
+.si-name { font-size: 12px; font-weight: bold; color: var(--text); text-align: center; }
+.si-desc { font-size: 10px; color: var(--muted); text-align: center; line-height: 1.4; }
+.si-price { font-size: 12px; font-weight: bold; text-align: center; }
+.si-actions { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+
+/* Passive upgrade level display */
+.si-stars { font-size: 14px; letter-spacing: 1px; text-align: center; }
+.si-level-row {
+  display: flex; gap: 6px; align-items: center; justify-content: center;
+  flex-wrap: wrap; font-size: 10px;
+}
+.si-level-label { color: var(--muted); }
+.si-effect { font-weight: bold; font-size: 10px; }
+.passive-item { min-height: 200px; }
+.shop-item.maxed { opacity: 0.75; }
+.shop-item.maxed .si-price { color: var(--gold) !important; }
+
+.btn-buy, .btn-equip {
+  padding: 4px 12px;
+  border-radius: 5px;
+  border: none;
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: bold;
+  background: var(--gold);
+  color: #0a0a00;
+}
+.btn-buy:hover { background: #ffe44d; }
+.btn-buy.disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; border: 1px solid var(--border); }
+.btn-equip { background: #22C55E; color: #001a00; }
+.btn-equip:hover { background: #4ade80; }
+.btn-equip.unequip { background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }

@@ -66,7 +66,8 @@ const BASE_DRINKS = [
       { type: 'glass',   subtype: 'highball',  text: 'Pick up a HIGHBALL glass (tall, straight-sided)' },
       { type: 'ice',     subtype: 'cylinder',  text: 'Fill with CYLINDER ice' },
       { type: 'spirits', text: 'Add 6 cl Aperol' },
-      { type: 'mixers',  text: 'Add 9 cl Prosecco + 3 cl soda water' },
+      { type: 'mixers',  text: 'Add 9 cl Prosecco' },
+      { type: 'mixers',  text: 'Add 3 cl soda water' },
       { type: 'garnish', text: 'Garnish with 1 orange slice' },
       { type: 'serve',   text: 'Serve!' },
     ],
@@ -85,7 +86,8 @@ const BASE_DRINKS = [
       { type: 'glass',   subtype: 'highball',  text: 'Pick up a HIGHBALL glass (tall, straight-sided)' },
       { type: 'ice',     subtype: 'cylinder',  text: 'Fill with CYLINDER ice' },
       { type: 'spirits', text: 'Add 6 cl Limoncello' },
-      { type: 'mixers',  text: 'Add 9 cl Prosecco + 3 cl soda water' },
+      { type: 'mixers',  text: 'Add 9 cl Prosecco' },
+      { type: 'mixers',  text: 'Add 3 cl soda water' },
       { type: 'garnish', text: 'Garnish with 1 lemon slice' },
       { type: 'serve',   text: 'Serve!' },
     ],
@@ -104,27 +106,9 @@ const BASE_DRINKS = [
       { type: 'glass',   subtype: 'lowball',  text: 'Pick up a LOWBALL glass (short, wide rocks glass)' },
       { type: 'ice',     subtype: 'cylinder', text: 'Fill with CYLINDER ice' },
       { type: 'spirits', text: 'Add 6 cl bourbon' },
-      { type: 'syrups',  text: 'Add 1 cl sugar syrup + 2 dashes Angostura bitters' },
+      { type: 'syrups',  text: 'Add 1 cl sugar syrup' },
+      { type: 'syrups',  text: 'Add 2 dashes Angostura bitters' },
       { type: 'garnish', text: 'Garnish with orange peel' },
-      { type: 'serve',   text: 'Serve!' },
-    ],
-  },
-  {
-    id: 'white_russian', name: 'White Russian',
-    glass: 'Lowball', ice: 'Cylinder', method: 'Build',
-    garnish: '3 coffee beans',
-    color: '#F5DEB3', category: 'build', difficulty: 1,
-    ingredients: [
-      { amount: '3 cl', item: 'Kahlúa' },
-      { amount: '2 cl', item: 'Vodka' },
-      { amount: '8 cl', item: 'Whole Milk' },
-    ],
-    steps: [
-      { type: 'glass',   subtype: 'lowball',  text: 'Pick up a LOWBALL glass (short rocks glass)' },
-      { type: 'ice',     subtype: 'cylinder', text: 'Fill with CYLINDER ice' },
-      { type: 'spirits', text: 'Add 3 cl Kahlúa + 2 cl vodka' },
-      { type: 'mixers',  text: 'Add 8 cl whole milk' },
-      { type: 'garnish', text: 'Garnish with 3 coffee beans' },
       { type: 'serve',   text: 'Serve!' },
     ],
   },
@@ -134,7 +118,7 @@ const BASE_DRINKS = [
     garnish: '1 lime wedge + mint',
     color: '#FF6347', category: 'build', difficulty: 2,
     ingredients: [
-      { amount: '4 cl', item: 'Rum' },
+      { amount: '4 cl', item: 'Vodka' },
       { amount: '2 cl', item: 'Sour Mix' },
       { amount: '4 cl', item: 'Passion Juice' },
       { amount: '2 cl', item: 'Passion Syrup' },
@@ -142,14 +126,36 @@ const BASE_DRINKS = [
     steps: [
       { type: 'glass',   subtype: 'lowball',  text: 'Pick up a LOWBALL glass (short rocks glass)' },
       { type: 'ice',     subtype: 'crushed',  text: 'Fill with CRUSHED ice' },
-      { type: 'spirits', text: 'Add 4 cl rum' },
-      { type: 'syrups',  text: 'Add 2 cl sour mix + 2 cl passion syrup' },
+      { type: 'spirits', text: 'Add 4 cl vodka' },
+      { type: 'syrups',  text: 'Add 2 cl sour mix' },
+      { type: 'syrups',  text: 'Add 2 cl passion syrup' },
       { type: 'mixers',  text: 'Add 4 cl passion juice' },
       { type: 'garnish', text: 'Garnish with 1 lime wedge + mint' },
       { type: 'serve',   text: 'Serve!' },
     ],
   },
   // ── SHAKE DRINKS ────────────────────────────────────────
+  {
+    id: 'white_russian', name: 'White Russian',
+    glass: 'Lowball', ice: 'Cylinder', method: 'Shake / Strain',
+    garnish: '3 coffee beans',
+    color: '#F5DEB3', category: 'shake', difficulty: 2,
+    ingredients: [
+      { amount: '3 cl', item: 'Kahlúa' },
+      { amount: '2 cl', item: 'Vodka' },
+      { amount: '8 cl', item: 'Whole Milk' },
+    ],
+    steps: [
+      { type: 'glass',   subtype: 'lowball',  text: 'Pick up a LOWBALL glass (short rocks glass)' },
+      { type: 'spirits', text: 'Add 3 cl Kahlúa to shaker' },
+      { type: 'spirits', text: 'Add 2 cl vodka to shaker' },
+      { type: 'mixers',  text: 'Add 8 cl whole milk to shaker' },
+      { type: 'shake',   text: 'Shake well with ice' },
+      { type: 'ice',     subtype: 'cylinder', text: 'Strain into glass over CYLINDER ice' },
+      { type: 'garnish', text: 'Garnish with 3 coffee beans' },
+      { type: 'serve',   text: 'Serve!' },
+    ],
+  },
   {
     id: 'espresso_martini', name: 'Espresso Martini',
     glass: 'Martini', ice: 'None in glass', method: 'Shake / Strain',
@@ -163,7 +169,8 @@ const BASE_DRINKS = [
     ],
     steps: [
       { type: 'glass',   subtype: 'martini', text: 'Pick up a MARTINI glass (V-shaped stem glass)' },
-      { type: 'spirits', text: 'Add 3 cl Kahlúa + 2 cl vodka to shaker' },
+      { type: 'spirits', text: 'Add 3 cl Kahlúa to shaker' },
+      { type: 'spirits', text: 'Add 2 cl vodka to shaker' },
       { type: 'mixers',  text: 'Add 6 cl espresso coffee to shaker' },
       { type: 'syrups',  text: 'Add 1 cl sugar syrup' },
       { type: 'shake',   text: 'Shake HARD with ice (creates the foam!)' },
@@ -178,13 +185,14 @@ const BASE_DRINKS = [
     color: '#DC143C', category: 'shake', difficulty: 2,
     ingredients: [
       { amount: '2 cl',      item: 'Vodka' },
-      { amount: '4 cl',      item: 'Triple Sec' },
+      { amount: '2 cl',      item: 'Triple Sec' },
       { amount: '8 cl',      item: 'Cranberry Juice' },
       { amount: '2 pressed', item: 'Lime' },
     ],
     steps: [
       { type: 'glass',   subtype: 'martini', text: 'Pick up a MARTINI glass (V-shaped stem glass)' },
-      { type: 'spirits', text: 'Add 2 cl vodka + 4 cl Triple Sec to shaker' },
+      { type: 'spirits', text: 'Add 2 cl vodka to shaker' },
+      { type: 'spirits', text: 'Add 2 cl Triple Sec to shaker' },
       { type: 'mixers',  text: 'Add 8 cl cranberry juice + juice of 2 pressed limes' },
       { type: 'shake',   text: 'Shake well with ice' },
       { type: 'garnish', text: 'Strain into Martini glass' },
@@ -197,15 +205,15 @@ const BASE_DRINKS = [
     garnish: 'Freeze-dried raspberry',
     color: '#FF1493', category: 'shake', difficulty: 3,
     ingredients: [
-      { amount: '6 cl', item: 'Gin' },
-      { amount: '4 cl', item: 'Sour Mix' },
+      { amount: '4 cl', item: 'Gin' },
+      { amount: '6 cl', item: 'Sour Mix' },
       { amount: '2 cl', item: 'Raspberry Syrup' },
       { amount: '2 cl', item: 'Egg White' },
     ],
     steps: [
       { type: 'glass',   subtype: 'martini', text: 'Pick up a MARTINI glass (V-shaped stem glass)' },
-      { type: 'spirits', text: 'Add 6 cl gin to shaker' },
-      { type: 'syrups',  text: 'Add 4 cl sour mix + 2 cl raspberry syrup + 2 cl egg white' },
+      { type: 'spirits', text: 'Add 4 cl gin to shaker' },
+      { type: 'syrups',  text: 'Add 6 cl sour mix + 2 cl raspberry syrup + 2 cl egg white' },
       { type: 'shake',   text: 'Dry shake first (no ice), then shake again with ice' },
       { type: 'garnish', text: 'Strain into glass; garnish with freeze-dried raspberry' },
       { type: 'serve',   text: 'Serve!' },
@@ -217,7 +225,7 @@ const BASE_DRINKS = [
     garnish: '1 dried lime',
     color: '#DAA520', category: 'shake', difficulty: 2,
     ingredients: [
-      { amount: '6 cl',     item: 'Whiskey' },
+      { amount: '5 cl',     item: 'Bourbon' },
       { amount: '3 cl',     item: 'Sour Mix' },
       { amount: '2 cl',     item: 'Sugar Syrup' },
       { amount: '2 cl',     item: 'Egg White' },
@@ -225,7 +233,7 @@ const BASE_DRINKS = [
     ],
     steps: [
       { type: 'glass',   subtype: 'lowball',  text: 'Pick up a LOWBALL glass (short rocks glass)' },
-      { type: 'spirits', text: 'Add 6 cl whiskey to shaker' },
+      { type: 'spirits', text: 'Add 5 cl bourbon to shaker' },
       { type: 'syrups',  text: 'Add 3 cl sour mix + 2 cl sugar syrup + 2 cl egg white' },
       { type: 'shake',   text: 'Shake well with ice' },
       { type: 'ice',     subtype: 'cylinder', text: 'Strain into glass over CYLINDER ice' },
@@ -277,6 +285,23 @@ const BASE_DRINKS = [
     ],
   },
   {
+    id: 'kinderaeg', name: 'Kinderæg',
+    glass: 'Highball', ice: 'None in glass', method: 'Shake / Strain',
+    garnish: 'None',
+    color: '#F5DEB3', category: 'shake', difficulty: 1,
+    ingredients: [
+      { amount: '6 cl',  item: 'Licor 43' },
+      { amount: '16 cl', item: 'Cocoa Milk' },
+    ],
+    steps: [
+      { type: 'glass',   subtype: 'highball', text: 'Pick up a HIGHBALL glass' },
+      { type: 'spirits', text: 'Add 6 cl Licor 43 to shaker' },
+      { type: 'mixers',  text: 'Add 16 cl cocoa milk to shaker' },
+      { type: 'shake',   text: 'Shake well with ice; strain into glass' },
+      { type: 'serve',   text: 'Serve!' },
+    ],
+  },
+  {
     id: 'bramble', name: 'Bramble',
     glass: 'Lowball', ice: 'Crushed', method: 'Shake / Float',
     garnish: '1 dried lime',
@@ -300,7 +325,7 @@ const BASE_DRINKS = [
   // ── MUDDLE DRINKS ───────────────────────────────────────
   {
     id: 'mojito', name: 'Mojito',
-    glass: 'Highball', ice: 'Large chunks', method: 'Muddle / Build',
+    glass: 'Highball', ice: 'Crushed', method: 'Muddle / Build',
     garnish: '1 piece dried lime',
     color: '#98FB98', category: 'muddle', difficulty: 2,
     ingredients: [
@@ -315,7 +340,7 @@ const BASE_DRINKS = [
       { type: 'syrups',  text: 'Add 2 tsp cane sugar + 2 lime wedges + 2 mint sprigs to glass' },
       { type: 'muddle',  text: 'MUDDLE the sugar, lime and mint together in the glass' },
       { type: 'spirits', text: 'Add 4 cl rum' },
-      { type: 'ice',     subtype: 'large',    text: 'Fill with LARGE ice chunks' },
+      { type: 'ice',     subtype: 'crushed',  text: 'Fill with CRUSHED ice' },
       { type: 'mixers',  text: 'Top with soda water' },
       { type: 'garnish', text: 'Garnish with 1 piece dried lime' },
       { type: 'serve',   text: 'Serve!' },
@@ -323,7 +348,7 @@ const BASE_DRINKS = [
   },
   {
     id: 'mango_mojito', name: 'Mango Mojito',
-    glass: 'Highball', ice: 'Large chunks', method: 'Muddle / Build',
+    glass: 'Highball', ice: 'Crushed', method: 'Muddle / Build',
     garnish: '1 piece dried lime',
     color: '#FFA500', category: 'muddle', difficulty: 2,
     ingredients: [
@@ -340,7 +365,7 @@ const BASE_DRINKS = [
       { type: 'muddle',  text: 'MUDDLE the sugar, lime and mint in the glass' },
       { type: 'spirits', text: 'Add 4 cl rum' },
       { type: 'syrups',  text: 'Add 2 cl mango syrup' },
-      { type: 'ice',     subtype: 'large',    text: 'Fill with LARGE ice chunks' },
+      { type: 'ice',     subtype: 'crushed',  text: 'Fill with CRUSHED ice' },
       { type: 'mixers',  text: 'Top with soda water' },
       { type: 'garnish', text: 'Garnish with 1 piece dried lime' },
       { type: 'serve',   text: 'Serve!' },
@@ -348,14 +373,14 @@ const BASE_DRINKS = [
   },
   {
     id: 'razor_mojito', name: 'Razor Mojito',
-    glass: 'Highball', ice: 'Large chunks', method: 'Muddle / Build',
+    glass: 'Highball', ice: 'Crushed', method: 'Muddle / Build',
     garnish: '1 piece dried lime',
     color: '#FF69B4', category: 'muddle', difficulty: 2,
     ingredients: [
       { amount: '2 tsp',  item: 'Cane Sugar' },
       { amount: '2',      item: 'Mint Sprigs' },
       { amount: '2',      item: 'Lime Wedges' },
-      { amount: '4 cl',   item: 'Rum' },
+      { amount: '4 cl',   item: 'Bacardi Razz' },
       { amount: '2 cl',   item: 'Passoa' },
       { amount: 'Top up', item: 'Ginger Beer' },
     ],
@@ -363,8 +388,9 @@ const BASE_DRINKS = [
       { type: 'glass',   subtype: 'highball', text: 'Pick up a HIGHBALL glass (tall, straight-sided)' },
       { type: 'syrups',  text: 'Add 2 tsp cane sugar + 2 mint sprigs + 2 lime wedges' },
       { type: 'muddle',  text: 'MUDDLE the sugar, mint and lime in the glass' },
-      { type: 'spirits', text: 'Add 4 cl rum + 2 cl Passoa' },
-      { type: 'ice',     subtype: 'large',    text: 'Fill with LARGE ice chunks' },
+      { type: 'spirits', text: 'Add 4 cl Bacardi Razz' },
+      { type: 'spirits', text: 'Add 2 cl Passoa' },
+      { type: 'ice',     subtype: 'crushed',  text: 'Fill with CRUSHED ice' },
       { type: 'mixers',  text: 'Top with ginger beer' },
       { type: 'garnish', text: 'Garnish with 1 piece dried lime' },
       { type: 'serve',   text: 'Serve!' },
@@ -377,15 +403,16 @@ const BASE_DRINKS = [
     garnish: 'Whipped cream + 2 thin pineapple wedges on a skewer',
     color: '#FFFACD', category: 'blend', difficulty: 2,
     ingredients: [
+      { amount: '4 cl',  item: 'Malibu' },
       { amount: '12 cl', item: 'Pineapple Juice' },
       { amount: '2 cl',  item: 'Coconut Syrup' },
-      { amount: '2 cl',  item: 'Rum Syrup' },
       { amount: 'Top',   item: 'Whipped Cream' },
     ],
     steps: [
       { type: 'glass',   subtype: 'highball', text: 'Pick up a HIGHBALL (or Copa) glass' },
+      { type: 'spirits', text: 'Add 4 cl Malibu to blender' },
       { type: 'mixers',  text: 'Add 12 cl pineapple juice to blender' },
-      { type: 'syrups',  text: 'Add 2 cl coconut syrup + 2 cl rum syrup to blender' },
+      { type: 'syrups',  text: 'Add 2 cl coconut syrup to blender' },
       { type: 'blend',   text: 'BLEND with crushed ice until smooth' },
       { type: 'garnish', text: 'Top with whipped cream + 2 pineapple wedges on skewer' },
       { type: 'serve',   text: 'Serve!' },
@@ -398,19 +425,48 @@ const BASE_DRINKS = [
     color: '#FF4444', category: 'blend', difficulty: 2,
     ingredients: [
       { amount: '4 cl',  item: 'Rum' },
-      { amount: '3 cl',  item: 'Lime Juice / Sour Mix' },
+      { amount: '3 cl',  item: 'Sour Mix' },
       { amount: '10 cl', item: 'Strawberry Purée' },
       { amount: '6 cl',  item: 'Strawberry Shot' },
     ],
     steps: [
       { type: 'glass',   subtype: 'highball', text: 'Pick up a HIGHBALL (or cocktail) glass' },
-      { type: 'spirits', text: 'Add 4 cl rum + 3 cl lime/sour mix to blender' },
-      { type: 'mixers',  text: 'Add 10 cl strawberry purée + 6 cl strawberry shot' },
+      { type: 'spirits', text: 'Add 4 cl rum to blender' },
+      { type: 'syrups',  text: 'Add 3 cl sour mix to blender' },
+      { type: 'mixers',  text: 'Add 10 cl strawberry purée + 6 cl strawberry shot to blender' },
       { type: 'blend',   text: 'BLEND with ice for 30–40 seconds' },
       { type: 'garnish', text: 'Garnish with 1 whole strawberry' },
       { type: 'serve',   text: 'Serve!' },
     ],
   },
+];
+
+// ── Shop item catalogue ──────────────────────────────────────
+const SHOP_ITEMS = [
+  // Passives (permanent run bonuses)
+  { id:'p_lucky',  type:'passive', name:'Lucky Charm',  desc:'Begin every run with 1 Lucky Pour.',      icon:'🍀', price:150, color:'#86EFAC' },
+  { id:'p_heart',  type:'passive', name:'Iron Heart',   desc:'Begin every run with +1 max heart.',      icon:'♥',  price:250, color:'#EF4444' },
+  { id:'p_speed',  type:'passive', name:'Swift Feet',   desc:'Begin every run 15% faster.',             icon:'⚡', price:200, color:'#FFD700' },
+  { id:'p_tips',   type:'passive', name:'Tip Magnet',   desc:'Earn 25% more DKK tips per drink.',       icon:'💰', price:300, color:'#6EE7B7' },
+  { id:'p_hint',   type:'passive', name:'Sharp Mind',   desc:'Station hints appear after 3s not 5s.',   icon:'💡', price:180, color:'#74B9FF' },
+  { id:'p_time',   type:'passive', name:'Sommelier',    desc:'Begin every run with +20s on the clock.', icon:'⏱', price:320, color:'#A29BFE' },
+  // Hat cosmetics
+  { id:'c_hat_red',    type:'cosmetic', slot:'hat', name:'Red Toque',      price:60,  color:'#EF4444' },
+  { id:'c_hat_blue',   type:'cosmetic', slot:'hat', name:'Cobalt Toque',   price:60,  color:'#3B82F6' },
+  { id:'c_hat_green',  type:'cosmetic', slot:'hat', name:'Forest Toque',   price:60,  color:'#22C55E' },
+  { id:'c_hat_purple', type:'cosmetic', slot:'hat', name:'Violet Toque',   price:60,  color:'#A855F7' },
+  { id:'c_hat_gold',   type:'cosmetic', slot:'hat', name:'Gold Toque',     price:120, color:'#FFD700' },
+  { id:'c_hat_black',  type:'cosmetic', slot:'hat', name:'Midnight Toque', price:80,  color:'#1A1A2E' },
+  // Apron cosmetics
+  { id:'c_apron_navy',   type:'cosmetic', slot:'apron', name:'Navy Apron',   price:80,  color:'#1E3A5F' },
+  { id:'c_apron_black',  type:'cosmetic', slot:'apron', name:'Black Apron',  price:80,  color:'#1A1A1A' },
+  { id:'c_apron_forest', type:'cosmetic', slot:'apron', name:'Forest Apron', price:80,  color:'#1A4A2A' },
+  { id:'c_apron_purple', type:'cosmetic', slot:'apron', name:'Royal Apron',  price:100, color:'#4A1A6A' },
+  { id:'c_apron_wine',   type:'cosmetic', slot:'apron', name:'Wine Apron',   price:100, color:'#6A1A2A' },
+  // Accessories
+  { id:'c_acc_bowtie', type:'cosmetic', slot:'acc', name:'Gold Bow Tie', price:100, color:'#FFD700' },
+  { id:'c_acc_shades', type:'cosmetic', slot:'acc', name:'Sunglasses',   price:120, color:'#111111' },
+  { id:'c_acc_tache',  type:'cosmetic', slot:'acc', name:'Moustache',    price:80,  color:'#2A1A0A' },
 ];
 
 // ── Storage module ──────────────────────────────────────────
@@ -421,6 +477,10 @@ const Storage = (() => {
     CUSTOM:    'barchaos_custom',
     OVERRIDES: 'barchaos_overrides',
     SETTINGS:  'barchaos_settings',
+    TIPS:           'barchaos_tips',
+    PURCHASED:      'barchaos_purchased',
+    EQUIPPED:       'barchaos_equipped',
+    PASSIVE_LEVELS: 'barchaos_passive_levels',
   };
 
   const load = (key, def) => {
@@ -473,6 +533,45 @@ const Storage = (() => {
   function getSetting(key, def = null) { return load(K.SETTINGS, {})[key] ?? def; }
   function setSetting(key, val)        { const s = load(K.SETTINGS, {}); s[key] = val; save(K.SETTINGS, s); }
 
+  function getTips()    { return load(K.TIPS, 0); }
+  function addTips(n)   { save(K.TIPS, getTips() + n); }
+  function spendTips(n) { const c=getTips(); if(c<n) return false; save(K.TIPS,c-n); return true; }
+
+  function hasPurchased(id)  { return load(K.PURCHASED,[]).includes(id); }
+  function purchaseItem(id)  { const p=load(K.PURCHASED,[]); if(!p.includes(id)){p.push(id);save(K.PURCHASED,p);} }
+  function getEquipped()     { return load(K.EQUIPPED,{}); }
+  function equipItem(slot,id){ const e=getEquipped(); e[slot]=id; save(K.EQUIPPED,e); }
+  function unequipItem(slot) { const e=getEquipped(); delete e[slot]; save(K.EQUIPPED,e); }
+  function getShopItems()    { return SHOP_ITEMS; }
+
+  // ── Passive levelling (0–5, exponential cost) ────────────
+  const PASSIVE_MAX = 5;
+  function getPassiveLevel(id) { return load(K.PASSIVE_LEVELS, {})[id] || 0; }
+  function passiveLevelCost(itemOrId, nextLevel) {
+    const item = typeof itemOrId === 'string'
+      ? SHOP_ITEMS.find(i => i.id === itemOrId) : itemOrId;
+    if (!item) return Infinity;
+    return Math.round(item.price * Math.pow(2, nextLevel - 1));
+  }
+  function upgradePassive(id) {
+    const item = SHOP_ITEMS.find(i => i.id === id && i.type === 'passive');
+    if (!item) return false;
+    const levels  = load(K.PASSIVE_LEVELS, {});
+    const current = levels[id] || 0;
+    if (current >= PASSIVE_MAX) return false;
+    const cost = passiveLevelCost(item, current + 1);
+    if (!spendTips(cost)) return false;
+    levels[id] = current + 1;
+    save(K.PASSIVE_LEVELS, levels);
+    return true;
+  }
+  function getUnlockedPassives() {
+    const levels = load(K.PASSIVE_LEVELS, {});
+    return SHOP_ITEMS
+      .filter(i => i.type === 'passive' && (levels[i.id] || 0) > 0)
+      .map(i => ({ ...i, level: levels[i.id] || 0 }));
+  }
+
   return {
     getHighScore, getHighScores, saveHighScore,
     getTrainingProgress, saveTrainingProgress,
@@ -480,5 +579,10 @@ const Storage = (() => {
     getDrinkOverrides, saveDrinkOverride, deleteDrinkOverride,
     getAllDrinks, getDrinkById,
     getSetting, setSetting,
+    getTips, addTips, spendTips,
+    hasPurchased, purchaseItem,
+    getEquipped, equipItem, unequipItem,
+    getShopItems, getUnlockedPassives,
+    getPassiveLevel, passiveLevelCost, upgradePassive, PASSIVE_MAX,
   };
 })();
