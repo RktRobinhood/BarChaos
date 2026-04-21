@@ -1,6 +1,6 @@
 # Bar Chaos 🍹
 
-A co-op bartending game (Overcooked-style) with a full drink training mode.
+A bartending game (Overcooked-style) with a full drink training mode.
 
 ## Play Now
 Open `index.html` in any modern browser — no server needed.
