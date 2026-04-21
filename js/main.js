@@ -121,7 +121,8 @@ const Main = (() => {
       Game.startLevel(opts.level || currentLevel, { keepUpgrades: !!opts.keepUpgrades });
     }
     if (s === 'training' && opts.drinkId) {
-      Training.startDrink(opts.drinkId);
+      if (opts.quizDirect) Training.startQuizDirect(opts.drinkId);
+      else Training.startDrink(opts.drinkId);
     }
     if (s === 'menuStudy') {
       refreshStudyGrid();
@@ -459,6 +460,7 @@ const Main = (() => {
           <div class="tsc-cat">${d.category} &bull; diff ${d.difficulty}</div>
           ${prog.mastered ? '<div class="tsc-mastered">★ Mastered</div>' : ''}
           ${prog.attempts ? `<div class="tsc-att">${prog.attempts} attempts</div>` : ''}
+          <button class="tsc-quiz-btn" onclick="event.stopPropagation();Main.setState('training',{drinkId:'${d.id}',quizDirect:true})">Quiz</button>
         </div>
       `;
     }).join('');

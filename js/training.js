@@ -169,6 +169,12 @@ const Training = (() => {
     updateHTMLPanel();
   }
 
+  // ── Start quiz directly (skip learn phase) ──────────────
+  function startQuizDirect(drinkId) {
+    startDrink(drinkId);
+    startQuiz();
+  }
+
   // ── Quiz mode ────────────────────────────────────────────
   function startQuiz() {
     if (!state) return;
@@ -436,7 +442,7 @@ const Training = (() => {
   }
 
   return {
-    init, startDrink, nextStep, prevStep, reset,
+    init, startDrink, startQuizDirect, nextStep, prevStep, reset,
     startQuiz, answerQuiz, nextQuizQuestion,
     update, render,
   };
