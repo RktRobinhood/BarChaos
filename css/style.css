@@ -299,6 +299,8 @@ input, select, textarea { font-family: var(--font); }
 }
 .lv-card:hover { border-color: var(--blue); transform: translateY(-3px); }
 .lv-card.cleared { border-color: var(--gold); }
+.lv-card.volcano { background: #1a0700; border-color: #8B2200; }
+.lv-card.volcano:hover { border-color: #FF4500; box-shadow: 0 0 18px rgba(255,69,0,0.45); }
 .lv-num { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; }
 .lv-name { font-size: 17px; font-weight: bold; color: #fff; margin: 6px 0 4px; }
 .lv-cat { font-size: 12px; color: var(--muted); margin-bottom: 8px; }

@@ -139,6 +139,23 @@ const Game = (() => {
         mkSt('serve1',120,508,120,56), mkSt('serve2',660,508,120,56),
       ],
     },
+    // ── Level 6: Volcano Bar ─────────────────────────────────
+    {
+      num:6, name:'Volcano Bar', duration:200, passScore:2500,
+      spawnInterval:12, maxOrders:5, orderTime:36, drinkCats:['build','shake','muddle','blend'],
+      floor:['#2A0E00','#1A0800'], wallBrick:'#0C0400', wallBrickLt:'#3A1000',
+      barWood:'#1A0500', barWoodLt:'#5A1800', barWoodDk:'#080200',
+      playerStart:{ x:400, y:340 },
+      theme: 'volcano',
+      stations:[
+        mkSt('shake',90,108,78,65), mkSt('blend',178,108,78,65), mkSt('muddle',266,108,78,65), mkSt('garnish',354,108,78,65),
+        mkSt('glass_highball',468,108,78,65), mkSt('glass_lowball',556,108,78,65), mkSt('glass_martini',644,108,78,65),
+        mkSt('trash',740,108,70,65),
+        mkSt('spirits',10,210,72,95), mkSt('mixers',10,318,72,95), mkSt('syrups',10,426,72,52),
+        mkSt('ice_cylinder',818,210,72,80), mkSt('ice_crushed',818,305,72,80), mkSt('ice_large',818,400,72,78),
+        mkSt('serve1',130,508,128,56), mkSt('serve2',640,508,128,56),
+      ],
+    },
   ];
 
   // Customer colours (distinct from player red)
@@ -361,6 +378,58 @@ const Game = (() => {
 
   function closeMiniGame() { state.miniGame = null; }
 
+  // ── Volcano Bar hazard system ─────────────────────────────
+  function updateVolcano(dt) {
+    // ── Heat spikes: warn then lock a random station ──────
+    state.heatTimer -= dt;
+    if (state.heatTimer <= 0) {
+      state.heatTimer = 18 + Math.random() * 12;
+      const blockable = state.stations.filter(s =>
+        s.type !== 'serve' && s.type !== 'trash' &&
+        !s.heatBlocked && !s.heatWarning
+      );
+      if (blockable.length) {
+        const target = blockable[Math.floor(Math.random() * blockable.length)];
+        target.heatWarning = 2.5;
+        target._heatBlockPending = true;
+        float(target.x + target.w/2, target.y - 10, 'HEAT SPIKE!', '#FF8C00', 15);
+        sfxBuzz();
+      }
+    }
+
+    for (const s of state.stations) {
+      if (s.heatWarning > 0) {
+        s.heatWarning -= dt;
+        if (s.heatWarning <= 0) {
+          s.heatWarning = 0;
+          if (s._heatBlockPending) {
+            s._heatBlockPending = false;
+            s.heatBlocked = 5;
+          }
+        }
+      }
+      if (s.heatBlocked > 0) {
+        s.heatBlocked -= dt;
+        if (s.heatBlocked <= 0) {
+          s.heatBlocked = 0;
+          float(s.x + s.w/2, s.y - 10, 'Cooled!', '#74B9FF', 13);
+        }
+      }
+    }
+
+    // ── Eruptions: orders expire 1.8× faster for 8 s ─────
+    state.eruptTimer -= dt;
+    if (state.eruptTimer <= 0) {
+      state.eruptTimer = 38 + Math.random() * 20;
+      state.eruptionActive = 8;
+      float(450, 260, 'ERUPTION! Orders expiring faster!', '#FF5500', 16);
+      sfxHeart();
+    }
+    if (state.eruptionActive > 0) {
+      state.eruptionActive = Math.max(0, state.eruptionActive - dt);
+    }
+  }
+
   function loseHeart() {
     if (state.luckyPours > 0) {
       state.luckyPours--;
@@ -399,6 +468,10 @@ const Game = (() => {
       if (p.holding) { p.holding=null; float(p.x,p.y-40,'Discarded!','#9CA3AF'); sfxBuzz(); }
       else { float(p.x,p.y-30,'Nothing nearby','#FF9999'); sfxBuzz(); }
       return;
+    }
+
+    if (s.heatBlocked > 0) {
+      float(p.x, p.y-30, 'TOO HOT! Wait…', '#FF4500'); sfxBuzz(); return;
     }
 
     if (s.type===ST.TRASH) {
@@ -519,7 +592,7 @@ const Game = (() => {
       time: cfg.duration + timeBonus, spawnTimer: 2,
       score:0, completedOrders:0, failedOrders:0,
       phase: 'playing',
-      stations: cfg.stations.map(s=>({...s,item:null,processing:false,processTimer:0,processingPlayer:null})),
+      stations: cfg.stations.map(s=>({...s,item:null,processing:false,processTimer:0,processingPlayer:null,heatBlocked:0,heatWarning:0,_heatBlockPending:false})),
       orders:[], floats:[],
       miniGame: null,
       runUpgrades,
@@ -527,6 +600,10 @@ const Game = (() => {
       upgradePicked: false,
       luckyPours: luckyStarts,
       tipsMult,
+      // Volcano Bar hazard timers
+      heatTimer:    cfg.theme === 'volcano' ? 20 + Math.random()*8 : 99999,
+      eruptTimer:   cfg.theme === 'volcano' ? 40 + Math.random()*15 : 99999,
+      eruptionActive: 0,
       quickMult,
       hintDelay: Math.max(1, 5 - pl('p_hint') * 0.8),
       player: {
@@ -557,7 +634,9 @@ const Game = (() => {
     if (state.spawnTimer<=0) { spawnOrder(); state.spawnTimer=state.cfg.spawnInterval; }
 
     for (let i=state.orders.length-1; i>=0; i--) {
-      const o=state.orders[i]; o.timeLeft-=dt;
+      const o=state.orders[i];
+      const decayMult = state.eruptionActive > 0 ? 1.8 : 1;
+      o.timeLeft -= dt * decayMult;
       if (o.timeLeft<=0) {
         if (state.player.holding?.orderId===o.id) state.player.holding=null;
         state.orders.splice(i,1); state.failedOrders++;
@@ -578,6 +657,8 @@ const Game = (() => {
     }
 
     state.floats = state.floats.filter(f=>{ f.y+=f.vy*dt; f.alpha-=dt/f.life; return f.alpha>0; });
+
+    if (state.cfg.theme === 'volcano') updateVolcano(dt);
 
     const p = state.player;
     if (!p.busy) {
@@ -836,12 +917,35 @@ const Game = (() => {
     }
 
     // "E" prompt
-    if(inRange){
+    if(inRange && !s.heatBlocked){
       const px=s.x+s.w/2, py=s.y-14;
       prect(px-12,py-9,24,16,'#FFD700','#0A0500',2);
       ctx.fillStyle='#0A0500'; ctx.font='bold 10px monospace';
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText('E',px,py-1);
+    }
+
+    // ── Volcano heat overlay ──────────────────────────────
+    if (s.heatWarning > 0) {
+      const flash = Math.sin(Date.now() / 80) > 0;
+      if (flash) {
+        ctx.save();
+        ctx.shadowColor='#FF8C00'; ctx.shadowBlur=22;
+        prect(s.x-3,s.y-3,s.w+6,s.h+6,null,'#FF8C00',3);
+        ctx.shadowBlur=0;
+        ctx.restore();
+      }
+      ctx.fillStyle='rgba(255,120,0,0.18)'; ctx.fillRect(s.x,s.y,s.w,s.h);
+    }
+    if (s.heatBlocked > 0) {
+      ctx.fillStyle='rgba(180,30,0,0.52)'; ctx.fillRect(s.x,s.y,s.w,s.h);
+      ctx.save();
+      ctx.shadowColor='#FF2200'; ctx.shadowBlur=20;
+      prect(s.x-3,s.y-3,s.w+6,s.h+6,null,'#FF2200',3);
+      ctx.shadowBlur=0; ctx.restore();
+      ctx.fillStyle='#FF8C00'; ctx.font='bold 9px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('HOT!', s.x+s.w/2|0, s.y+s.h/2|0);
     }
   }
 
@@ -948,6 +1052,208 @@ const Game = (() => {
     ctx.restore();
   }
 
+  // ── Cosmetic hat renderer ─────────────────────────────────
+  // All coords are in the player's local space (0,0 = waist).
+  // Head top is ~y=-20; hat puff normally peaks at y=-36.
+  const TOQUE_IDS = new Set(['c_hat_red','c_hat_blue','c_hat_green','c_hat_purple','c_hat_gold','c_hat_black']);
+  function drawPlayerHat(hatId, hatCol) {
+    if (!hatId || TOQUE_IDS.has(hatId)) {
+      // Full-coloured chef hat (much more visible than old 3px band)
+      const base = TOQUE_IDS.has(hatId) ? hatCol : '#FFFFFF';
+      const hi   = TOQUE_IDS.has(hatId) ? lighten(hatCol,40) : 'rgba(255,255,255,0.75)';
+      const sh   = TOQUE_IDS.has(hatId) ? darken(hatCol,30)  : '#D8D8D8';
+      const dk   = TOQUE_IDS.has(hatId) ? darken(hatCol,55)  : '#AAAAAA';
+      ctx.fillStyle=base; ctx.fillRect(-11,-27,22,8);        // brim band
+      ctx.fillStyle=sh;   ctx.fillRect(-11,-27,22,2);        // top shade on band
+      ctx.fillStyle=base; ctx.fillRect(-8,-37,16,11);        // puff
+      ctx.fillStyle=hi;   ctx.fillRect(-8,-37,16,4);         // puff highlight
+      ctx.strokeStyle=dk; ctx.lineWidth=1.5; ctx.strokeRect(-8,-37,16,11); ctx.strokeRect(-11,-27,22,8);
+      if (TOQUE_IDS.has(hatId)) { ctx.fillStyle=dk; ctx.fillRect(-11,-21,22,2); } // bottom accent
+      return;
+    }
+    switch (hatId) {
+      case 'c_hat_cowboy': {
+        // Wide-brim leather hat
+        const cr='#7A4A22', hi='#A86838', dk='#3A1A00';
+        ctx.fillStyle=cr;  ctx.fillRect(-10,-40,20,14);          // crown
+        ctx.fillStyle=hi;  ctx.fillRect(-10,-40,20,4);           // crown highlight
+        ctx.fillStyle=dk;  ctx.fillRect(-10,-28,20,2);           // crown bottom
+        ctx.fillStyle='#5A3010'; ctx.fillRect(-23,-29,46,6);     // brim
+        ctx.fillStyle=hi;  ctx.fillRect(-23,-29,46,2);           // brim highlight
+        ctx.fillStyle=hatCol; ctx.fillRect(-10,-29,20,4);        // coloured band
+        ctx.strokeStyle=dk; ctx.lineWidth=2;
+        ctx.strokeRect(-10,-40,20,14); ctx.strokeRect(-23,-29,46,6);
+        break;
+      }
+      case 'c_hat_crown': {
+        ctx.fillStyle='#FFD700'; ctx.fillRect(-14,-26,28,7);     // base
+        ctx.fillStyle='#B8860B'; ctx.fillRect(-14,-21,28,2);     // base shadow
+        // 5 triangular points
+        [-11,-5.5,0,5.5,11].forEach((ox,i)=>{
+          const h=[12,17,20,17,12][i];
+          ctx.fillStyle='#FFD700';
+          ctx.beginPath(); ctx.moveTo(ox-2.5,-26); ctx.lineTo(ox+2.5,-26); ctx.lineTo(ox,-26-h); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle='#B8860B'; ctx.lineWidth=1.5; ctx.stroke();
+        });
+        ctx.strokeStyle='#8B6900'; ctx.lineWidth=2; ctx.strokeRect(-14,-26,28,7);
+        // Gems
+        [[-8,'#EF4444'],[0,'#3B82F6'],[8,'#22C55E']].forEach(([gx,gc])=>{
+          ctx.fillStyle=gc; ctx.beginPath(); ctx.arc(gx,-22,3,0,Math.PI*2); ctx.fill();
+          ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=1; ctx.stroke();
+          ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(gx-0.8,-23,1.2,0,Math.PI*2); ctx.fill();
+        });
+        break;
+      }
+      case 'c_hat_wizard': {
+        const wc=hatCol||'#7C3AED';
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(-14,-24); ctx.lineTo(14,-24); ctx.lineTo(4,-55); ctx.lineTo(-4,-55); ctx.closePath(); ctx.clip();
+        ctx.fillStyle=wc; ctx.fillRect(-15,-56,30,33);
+        ctx.fillStyle=lighten(wc,20); ctx.fillRect(-15,-56,6,33);  // left highlight
+        ctx.restore();
+        ctx.strokeStyle=darken(wc,50); ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(-14,-24); ctx.lineTo(14,-24); ctx.lineTo(4,-55); ctx.lineTo(-4,-55); ctx.closePath(); ctx.stroke();
+        // Star dots
+        ctx.fillStyle='rgba(255,215,0,0.9)';
+        [[1,-50],[5,-42],[-4,-36],[3,-30]].forEach(([sx,sy])=>{ ctx.beginPath(); ctx.arc(sx,sy,1.8,0,Math.PI*2); ctx.fill(); });
+        // Wide brim
+        ctx.fillStyle=wc; ctx.fillRect(-18,-25,36,5);
+        ctx.fillStyle=lighten(wc,35); ctx.fillRect(-18,-25,36,2);
+        ctx.strokeStyle=darken(wc,50); ctx.lineWidth=2; ctx.strokeRect(-18,-25,36,5);
+        break;
+      }
+      case 'c_hat_party': {
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(-13,-24); ctx.lineTo(13,-24); ctx.lineTo(0,-50); ctx.closePath(); ctx.clip();
+        ['#EF4444','#FFD700','#22C55E','#3B82F6','#A855F7'].forEach((c,i)=>{ ctx.fillStyle=c; ctx.fillRect(-14,-24+i*5.4,28,5.4); });
+        ctx.restore();
+        // Cone outline
+        ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(-13,-24); ctx.lineTo(13,-24); ctx.lineTo(0,-50); ctx.closePath(); ctx.stroke();
+        // Pom-pom
+        ctx.fillStyle='#FFFFFF'; ctx.beginPath(); ctx.arc(0,-50,4.5,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(-1,-51.5,1.8,0,Math.PI*2); ctx.fill();
+        break;
+      }
+      case 'c_hat_viking': {
+        // Dome
+        ctx.fillStyle='#8A9BB0';
+        ctx.beginPath(); ctx.arc(0,-31,14,Math.PI,0); ctx.fill();
+        ctx.fillRect(-14,-31,28,10);
+        ctx.fillStyle='#B0C3D6'; ctx.fillRect(-14,-31,28,5);  // highlight
+        ctx.fillStyle='#6A7A8A'; ctx.fillRect(-14,-23,28,2);  // bottom shade
+        // Nose guard
+        ctx.fillStyle='#7A8A9A'; ctx.fillRect(-2,-31,4,15);
+        ctx.fillStyle='#B0C3D6'; ctx.fillRect(-2,-31,2,15);
+        // Horns (ivory)
+        ctx.fillStyle='#F0E8C0';
+        ctx.beginPath(); ctx.moveTo(-13,-29); ctx.lineTo(-26,-40); ctx.lineTo(-16,-29); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(13,-29); ctx.lineTo(26,-40); ctx.lineTo(16,-29); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='#5A4A20'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(-13,-29); ctx.lineTo(-26,-40); ctx.lineTo(-16,-29); ctx.closePath(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(13,-29); ctx.lineTo(26,-40); ctx.lineTo(16,-29); ctx.closePath(); ctx.stroke();
+        ctx.strokeStyle='#4A5A6A'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(0,-31,14,Math.PI,0); ctx.stroke();
+        ctx.strokeRect(-14,-31,28,10);
+        break;
+      }
+      case 'c_hat_flames': {
+        // Dark base band
+        ctx.fillStyle='#CC1A00'; ctx.fillRect(-13,-27,26,7);
+        ctx.fillStyle='#FF3300'; ctx.fillRect(-13,-27,26,3);
+        // Flames (quadratic curves)
+        [[-10,-27,5,24,true],[-5,-27,5,30,false],[0,-27,5,26,true],[5,-27,5,20,false],[8,-27,5,28,true]].forEach(([fx,fy,fw,fh,big])=>{
+          ctx.fillStyle=big?'#FF4500':'#FF8C00';
+          ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+fw,fy); ctx.quadraticCurveTo(fx+fw*0.75,fy-fh*0.45,fx+fw/2,fy-fh); ctx.quadraticCurveTo(fx+fw*0.25,fy-fh*0.45,fx,fy); ctx.closePath(); ctx.fill();
+          ctx.fillStyle='#FFD700';
+          ctx.beginPath(); ctx.moveTo(fx+1,fy); ctx.lineTo(fx+fw-1,fy); ctx.quadraticCurveTo(fx+fw*0.75,fy-fh*0.35,fx+fw/2,fy-fh*0.62); ctx.quadraticCurveTo(fx+fw*0.25,fy-fh*0.35,fx+1,fy); ctx.closePath(); ctx.fill();
+        });
+        ctx.strokeStyle='#8A0000'; ctx.lineWidth=1.5; ctx.strokeRect(-13,-27,26,7);
+        break;
+      }
+    }
+  }
+
+  // ── Cosmetic apron / body renderer ───────────────────────
+  const SOLID_APRONS = new Set(['c_apron_navy','c_apron_black','c_apron_forest','c_apron_purple','c_apron_wine']);
+  const PATTERN_APRONS = new Set(['c_apron_stripes','c_apron_checker','c_apron_rainbow','c_apron_tuxedo','c_apron_flames']);
+  function drawPlayerApron(apronId, apronCol) {
+    if (!apronId || (!SOLID_APRONS.has(apronId) && !PATTERN_APRONS.has(apronId))) {
+      // Default: white body, coloured top strip + tie
+      ctx.fillStyle='#F0F0F0'; ctx.fillRect(-11,2,22,14);
+      ctx.fillStyle=darken(apronCol,10); ctx.fillRect(-11,2,22,5);
+      ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(-11,2,5,14);
+      ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(9,2,2,14);
+      ctx.fillStyle=apronCol; ctx.fillRect(-2,4,4,8);
+      ctx.strokeStyle='#0A0500'; ctx.lineWidth=2; ctx.strokeRect(-11,2,22,14);
+      return;
+    }
+    if (SOLID_APRONS.has(apronId)) {
+      // Full-body colour (much more dramatic than old strip)
+      ctx.fillStyle=apronCol; ctx.fillRect(-11,2,22,14);
+      ctx.fillStyle=lighten(apronCol,35); ctx.fillRect(-11,2,5,14);    // left highlight
+      ctx.fillStyle=darken(apronCol,25);  ctx.fillRect(7,2,4,14);      // right shadow
+      ctx.fillStyle=lighten(apronCol,55); ctx.fillRect(-1,5,2,8);      // centre button line
+      ctx.strokeStyle='#0A0500'; ctx.lineWidth=2; ctx.strokeRect(-11,2,22,14);
+      return;
+    }
+    switch (apronId) {
+      case 'c_apron_stripes': {
+        ['#FFFFFF','#EF4444','#FFFFFF','#EF4444'].forEach((c,i)=>{ ctx.fillStyle=c; ctx.fillRect(-11,2+i*3.5,22,3.6); });
+        ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-11,2,5,14);
+        ctx.strokeStyle='#990000'; ctx.lineWidth=2; ctx.strokeRect(-11,2,22,14);
+        break;
+      }
+      case 'c_apron_checker': {
+        for(let r=0;r<2;r++) for(let c=0;c<4;c++){
+          ctx.fillStyle=(r+c)%2===0?'#F0F0F0':'#111111';
+          ctx.fillRect(-11+c*5.5,2+r*7,5.5,7);
+        }
+        ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.strokeRect(-11,2,22,14);
+        break;
+      }
+      case 'c_apron_rainbow': {
+        [['#EF4444',0],['#F97316',2.3],['#FFD700',4.6],['#22C55E',6.9],['#3B82F6',9.2],['#A855F7',11.5]].forEach(([c,dy])=>{ ctx.fillStyle=c; ctx.fillRect(-11,2+dy,22,2.5); });
+        ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(-11,2,5,14);
+        ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=2; ctx.strokeRect(-11,2,22,14);
+        break;
+      }
+      case 'c_apron_tuxedo': {
+        ctx.fillStyle='#111111'; ctx.fillRect(-11,2,22,14);      // jacket
+        ctx.fillStyle='#F0F0F0'; ctx.fillRect(-3,2,6,14);        // shirt
+        // Lapels
+        ctx.fillStyle='#111111';
+        ctx.beginPath(); ctx.moveTo(-11,2); ctx.lineTo(-3,7); ctx.lineTo(-3,2); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(11,2);  ctx.lineTo(3,7);  ctx.lineTo(3,2);  ctx.closePath(); ctx.fill();
+        // Red bow-tie
+        ctx.fillStyle='#EF4444';
+        ctx.beginPath(); ctx.moveTo(-4,3); ctx.lineTo(0,6); ctx.lineTo(-4,9); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(4,3);  ctx.lineTo(0,6); ctx.lineTo(4,9);  ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#CC0000'; ctx.beginPath(); ctx.arc(0,6,1.5,0,Math.PI*2); ctx.fill();
+        // Gold pocket square
+        ctx.fillStyle='#FFD700'; ctx.fillRect(5,4,4,4);
+        ctx.fillStyle='#F0F0F0'; ctx.beginPath(); ctx.moveTo(5,4); ctx.lineTo(9,4); ctx.lineTo(7,2); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.strokeRect(-11,2,22,14);
+        break;
+      }
+      case 'c_apron_flames': {
+        ctx.fillStyle='#1A0400'; ctx.fillRect(-11,2,22,14);        // dark bg
+        ctx.fillStyle='#FF4500'; ctx.fillRect(-11,10,22,6);        // lava base
+        ctx.fillStyle='#FF8C00'; ctx.fillRect(-11,13,22,3);        // bright lava
+        // Flame tongues licking upward
+        [[-9,10,5,10],[-4,10,5,12],[1,10,5,9],[6,10,5,11]].forEach(([fx,fy,fw,fh])=>{
+          ctx.fillStyle='#FF8C00';
+          ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+fw,fy); ctx.quadraticCurveTo(fx+fw/2+1,fy-fh*0.5,fx+fw/2,fy-fh); ctx.quadraticCurveTo(fx+fw/2-1,fy-fh*0.5,fx,fy); ctx.closePath(); ctx.fill();
+          ctx.fillStyle='#FFD700';
+          ctx.beginPath(); ctx.moveTo(fx+1,fy); ctx.lineTo(fx+fw-1,fy); ctx.quadraticCurveTo(fx+fw/2,fy-fh*0.55,fx+fw/2,fy-fh*0.6); ctx.quadraticCurveTo(fx+fw/2,fy-fh*0.55,fx+1,fy); ctx.closePath(); ctx.fill();
+        });
+        ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(-11,2,5,14);
+        ctx.strokeStyle='#8A0000'; ctx.lineWidth=2; ctx.strokeRect(-11,2,22,14);
+        break;
+      }
+    }
+  }
+
   // ── SNES player sprite ───────────────────────────────────
   function drawPlayer(p){
     const {x,y,radius,color,walkCycle,holding,busy}=p;
@@ -958,8 +1264,12 @@ const Game = (() => {
     const hatItem   = shopItems.find(i=>i.id===ec.hat);
     const apronItem = shopItems.find(i=>i.id===ec.apron);
     const accId     = ec.acc;
+    const accItem   = shopItems.find(i=>i.id===accId);
     const hatCol    = hatItem   ? hatItem.color   : color;
     const apronCol  = apronItem ? apronItem.color : color;
+    const accCol    = accItem   ? accItem.color   : '#FFD700';
+    const hatId     = ec.hat   || null;
+    const apronId   = ec.apron || null;
     const moving=Math.abs(p.vx)+Math.abs(p.vy)>0;
     const bob=Math.sin(walkCycle)*3*(moving?1:0);
     const legSwing=Math.sin(walkCycle)*4*(moving?1:0);
@@ -982,14 +1292,8 @@ const Game = (() => {
       ctx.fillRect(-7,10,5,9); ctx.fillRect(3,10,5,9);
     }
 
-    // Body / apron (white uniform + colored collar)
-    ctx.fillStyle='#F0F0F0'; ctx.fillRect(-11,2,22,14);
-    ctx.fillStyle=darken(apronCol,10); ctx.fillRect(-11,2,22,5); // colored top
-    ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(-11,2,5,14); // highlight left
-    ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(9,2,2,14); // shadow right
-    ctx.fillStyle='#0A0500'; ctx.strokeRect(-11,2,22,14); // outline
-    // Apron tie
-    ctx.fillStyle=apronCol; ctx.fillRect(-2,4,4,8);
+    // Body / apron
+    drawPlayerApron(apronId, apronCol);
 
     // Head (pixel art — square-ish, African skin tone)
     const skinCol='#7A3E28';
@@ -998,35 +1302,146 @@ const Game = (() => {
     ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(8,-20,2,18); // shadow
     ctx.strokeStyle='#2A0800'; ctx.lineWidth=2; ctx.strokeRect(-10,-20,20,18);
 
-    // Chef hat (white rectangle + puff)
-    ctx.fillStyle='#FFFFFF'; ctx.fillRect(-11,-27,22,8);
-    ctx.fillStyle='#E0E0E0'; ctx.fillRect(-11,-27,22,2); // shade top
-    ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.fillRect(-8,-36,16,10);
-    ctx.fillStyle='#E8E8E8'; ctx.fillRect(-8,-36,16,3);
-    ctx.strokeStyle='#CCCCCC'; ctx.lineWidth=1.5; ctx.strokeRect(-8,-36,16,10);
-    ctx.strokeStyle='#CCCCCC'; ctx.strokeRect(-11,-27,22,8);
-    // Hat band
-    ctx.fillStyle=hatCol; ctx.fillRect(-11,-21,22,3);
+    // Hat
+    drawPlayerHat(hatId, hatCol);
 
     // Eyes (2px pixel art)
     const eyes={down:[[-4,-13],[4,-13]],up:[[-4,-17],[4,-17]],left:[[-7,-14],[-1,-13]],right:[[1,-13],[7,-14]]};
     ctx.fillStyle='#0A0500';
     (eyes[p.facing]||eyes.down).forEach(([ex,ey])=>{ ctx.fillRect(ex-2,ey-1,4,3); });
 
-    // Accessory
-    if(accId==='c_acc_bowtie'){
-      ctx.fillStyle='#FFD700'; ctx.fillRect(-5,1,10,5);
-      ctx.fillStyle='#C8A000'; ctx.beginPath(); ctx.moveTo(-5,1); ctx.lineTo(-5,6); ctx.lineTo(0,3.5); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(5,1); ctx.lineTo(5,6); ctx.lineTo(0,3.5); ctx.closePath(); ctx.fill();
-    } else if(accId==='c_acc_shades'){
-      ctx.fillStyle='rgba(17,17,17,0.85)';
-      ctx.fillRect(-10,-16,8,5); ctx.fillRect(2,-16,8,5);
-      ctx.strokeStyle='#555'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(-2,-14); ctx.lineTo(2,-14); ctx.stroke();
-    } else if(accId==='c_acc_tache'){
-      ctx.fillStyle='#2A1A0A';
-      ctx.beginPath(); ctx.ellipse(-3,-7,5,2.5,0.2,0,Math.PI); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(3,-7,5,2.5,-0.2,0,Math.PI); ctx.fill();
+    // ── Accessory ─────────────────────────────────────────
+    if (accId === 'c_acc_bowtie') {
+      // Giant gold bow-tie at collar
+      ctx.fillStyle='#FFD700';
+      ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(0,4); ctx.lineTo(-9,8); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(9,0);  ctx.lineTo(0,4); ctx.lineTo(9,8);  ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#C8A000';
+      ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(-9,8); ctx.lineTo(-6,4); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(9,0);  ctx.lineTo(9,8);  ctx.lineTo(6,4);  ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#FFE44D'; ctx.beginPath(); ctx.arc(0,4,2.5,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#8B6900'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(0,4); ctx.lineTo(-9,8); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(9,0);  ctx.lineTo(0,4); ctx.lineTo(9,8);  ctx.closePath(); ctx.stroke();
+
+    } else if (accId === 'c_acc_shades') {
+      // Mirror aviator shades (big, silver-framed)
+      ctx.fillStyle='rgba(136,204,255,0.55)';
+      ctx.fillRect(-12,-18,11,8); ctx.fillRect(1,-18,11,8);
+      ctx.fillStyle='rgba(200,230,255,0.35)'; // mirror glare
+      ctx.fillRect(-12,-18,4,3); ctx.fillRect(1,-18,4,3);
+      ctx.strokeStyle='#B0C8D8'; ctx.lineWidth=2;
+      ctx.strokeRect(-12,-18,11,8); ctx.strokeRect(1,-18,11,8);
+      ctx.beginPath(); ctx.moveTo(-1,-14); ctx.lineTo(1,-14); ctx.stroke(); // bridge
+      ctx.strokeStyle='#A0B8C8'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(-12,-14); ctx.lineTo(-17,-11); ctx.stroke(); // arms
+      ctx.beginPath(); ctx.moveTo(12,-14); ctx.lineTo(17,-11); ctx.stroke();
+
+    } else if (accId === 'c_acc_tache') {
+      // Massive handlebar moustache
+      ctx.fillStyle='#3D1C00';
+      ctx.beginPath(); ctx.moveTo(-1,-8); ctx.bezierCurveTo(-3,-8,-14,-4,-16,-1); ctx.bezierCurveTo(-14,-1,-8,-8,-1,-8); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(1,-8);  ctx.bezierCurveTo(3,-8,14,-4,16,-1);  ctx.bezierCurveTo(14,-1,8,-8,1,-8);  ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#5C2E00'; // highlight
+      ctx.beginPath(); ctx.moveTo(-1,-8); ctx.bezierCurveTo(-3,-9,-10,-6,-14,-4); ctx.bezierCurveTo(-10,-5,-3,-9,-1,-8); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(1,-8);  ctx.bezierCurveTo(3,-9,10,-6,14,-4);  ctx.bezierCurveTo(10,-5,3,-9,1,-8);  ctx.closePath(); ctx.fill();
+
+    } else if (accId === 'c_acc_mohawk') {
+      // Tall rainbow mohawk above head
+      ['#FF1493','#FF4500','#FFD700','#00FF88','#00BFFF'].forEach((c,i)=>{
+        const sx=-8+i*4, sh=i%2===0?22:16;
+        ctx.fillStyle=c;
+        ctx.beginPath(); ctx.moveTo(sx-2.5,-20); ctx.lineTo(sx+2.5,-20); ctx.lineTo(sx+1,-20-sh); ctx.lineTo(sx-1,-20-sh); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=1; ctx.stroke();
+      });
+
+    } else if (accId === 'c_acc_halo') {
+      // Glowing golden halo
+      ctx.save();
+      ctx.shadowColor='#FFD700'; ctx.shadowBlur=16;
+      ctx.strokeStyle='#FFD700'; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.ellipse(0,-48,15,5,0,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle='rgba(255,215,0,0.22)'; ctx.lineWidth=10;
+      ctx.beginPath(); ctx.ellipse(0,-48,15,5,0,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle='#FFEC80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(0,-48,15,5,0,0,Math.PI*2); ctx.stroke();
+
+    } else if (accId === 'c_acc_chain') {
+      // Thick gold chain with pendant
+      const pts=[{t:0},{t:0.25},{t:0.5},{t:0.75},{t:1}];
+      ctx.strokeStyle='#FFD700'; ctx.lineWidth=2.5;
+      ctx.beginPath();
+      pts.forEach(({t},i)=>{ const cx=-9+t*18, cy=1+Math.sin(t*Math.PI)*7; i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy); });
+      ctx.stroke();
+      // Links
+      pts.forEach(({t})=>{
+        const cx=-9+t*18|0, cy=(1+Math.sin(t*Math.PI)*7)|0;
+        ctx.fillStyle='#FFD700'; ctx.beginPath(); ctx.arc(cx,cy,2.5,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle='#B8860B'; ctx.lineWidth=1; ctx.stroke();
+      });
+      // Pendant
+      ctx.fillStyle='#FFD700'; ctx.strokeStyle='#B8860B'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(0,9,5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(-1.5,7.5,1.8,0,Math.PI*2); ctx.fill();
+
+    } else if (accId === 'c_acc_neonshades') {
+      // Oversized neon pink cat-eye glasses
+      ctx.fillStyle='rgba(255,0,220,0.45)';
+      // Cat-eye shape (clipped quads)
+      ctx.beginPath(); ctx.moveTo(-13,-19); ctx.lineTo(-1,-20); ctx.lineTo(-1,-13); ctx.lineTo(-13,-12); ctx.lineTo(-15,-15); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(1,-20); ctx.lineTo(13,-19); ctx.lineTo(15,-15); ctx.lineTo(13,-12); ctx.lineTo(1,-13); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='#FF00FF'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(-13,-19); ctx.lineTo(-1,-20); ctx.lineTo(-1,-13); ctx.lineTo(-13,-12); ctx.lineTo(-15,-15); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(1,-20); ctx.lineTo(13,-19); ctx.lineTo(15,-15); ctx.lineTo(13,-12); ctx.lineTo(1,-13); ctx.closePath(); ctx.stroke();
+      ctx.strokeStyle='#FF00FF'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(-1,-16); ctx.lineTo(1,-16); ctx.stroke(); // bridge
+      ctx.strokeStyle='#DD00DD'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(-13,-15); ctx.lineTo(-18,-13); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(13,-15); ctx.lineTo(18,-13); ctx.stroke();
+      // Lens gleam
+      ctx.fillStyle='rgba(255,180,255,0.5)'; ctx.fillRect(-12,-18,4,2); ctx.fillRect(2,-18,4,2);
+
+    } else if (accId === 'c_acc_beard') {
+      // Enormous lumberjack beard
+      ctx.fillStyle='#5C3317';
+      ctx.beginPath();
+      ctx.moveTo(-11,-4); ctx.lineTo(11,-4);
+      ctx.lineTo(13,8); ctx.lineTo(9,18); ctx.lineTo(0,21); ctx.lineTo(-9,18); ctx.lineTo(-13,8);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#7A4A22'; // lighter mid-beard
+      ctx.beginPath();
+      ctx.moveTo(-9,-3); ctx.lineTo(9,-3); ctx.lineTo(10,7); ctx.lineTo(-10,7);
+      ctx.closePath(); ctx.fill();
+      // Streak texture lines
+      ctx.strokeStyle='#3A1A00'; ctx.lineWidth=1;
+      [[-6,-2],[-2,-2],[2,-2],[6,-2],[-7,6],[-2,7],[2,7],[7,6]].forEach(([sx,sy])=>{
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+0.5,sy+5); ctx.stroke();
+      });
+      ctx.strokeStyle='#3A1A00'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(-11,-4); ctx.lineTo(11,-4); ctx.lineTo(13,8); ctx.lineTo(9,18); ctx.lineTo(0,21); ctx.lineTo(-9,18); ctx.lineTo(-13,8); ctx.closePath(); ctx.stroke();
+
+    } else if (accId === 'c_acc_stars') {
+      // Animated golden star orbit
+      const t4=Date.now()/700;
+      for(let i=0;i<6;i++){
+        const angle=t4+i*Math.PI/3;
+        const rx=26+Math.sin(t4*2+i)*4, ry=20+Math.sin(t4*2+i)*3;
+        const sx=Math.cos(angle)*rx, sy=Math.sin(angle)*ry-14;
+        const sc=0.6+0.4*Math.abs(Math.sin(t4*2.5+i));
+        const al=0.55+0.45*sc;
+        ctx.fillStyle=`rgba(255,215,0,${al})`;
+        ctx.save(); ctx.translate(sx,sy); ctx.rotate(angle*1.4); ctx.scale(sc,sc);
+        ctx.beginPath();
+        for(let k=0;k<5;k++){
+          const a=k*Math.PI*2/5-Math.PI/2;
+          const ia=a+Math.PI/5;
+          k===0?ctx.moveTo(Math.cos(a)*5,Math.sin(a)*5):ctx.lineTo(Math.cos(a)*5,Math.sin(a)*5);
+          ctx.lineTo(Math.cos(ia)*2.2,Math.sin(ia)*2.2);
+        }
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
     }
 
     // Holding bubble
@@ -1463,6 +1878,87 @@ const Game = (() => {
     });
   }
 
+  // ── Volcano: animated lava cracks on floor ───────────────
+  function drawLavaFloor() {
+    const t = Date.now() / 1000;
+    // Glowing cracks
+    const cracks = [
+      {x1:150,y1:220,x2:210,y2:290}, {x1:300,y1:360,x2:360,y2:430},
+      {x1:510,y1:195,x2:555,y2:260}, {x1:650,y1:310,x2:710,y2:385},
+      {x1:390,y1:425,x2:430,y2:488}, {x1:195,y1:445,x2:260,y2:490},
+      {x1:580,y1:210,x2:630,y2:258}, {x1:720,y1:415,x2:775,y2:475},
+      {x1:100,y1:390,x2:155,y2:450}, {x1:460,y1:310,x2:510,y2:370},
+    ];
+    cracks.forEach((c, i) => {
+      const pulse = 0.5 + 0.5 * Math.sin(t * 1.6 + i * 1.1);
+      const alpha = 0.35 + 0.45 * pulse;
+      const g = Math.round(70 + pulse * 70);
+      ctx.save();
+      ctx.shadowColor = '#FF4400'; ctx.shadowBlur = 10 * pulse;
+      ctx.strokeStyle = `rgba(255,${g},0,${alpha})`;
+      ctx.lineWidth = 1.5 + pulse;
+      ctx.beginPath(); ctx.moveTo(c.x1, c.y1); ctx.lineTo(c.x2, c.y2); ctx.stroke();
+      ctx.shadowBlur = 0;
+      // Molten dot at midpoint
+      const mx = (c.x1+c.x2)/2, my = (c.y1+c.y2)/2;
+      ctx.fillStyle = `rgba(255,${g+60},0,${alpha * 0.6})`;
+      ctx.beginPath(); ctx.arc(mx, my, 2.5 + pulse*2, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    });
+    // Edge glow where floor meets side walls
+    const gL = ctx.createLinearGradient(82, 0, 180, 0);
+    gL.addColorStop(0, `rgba(255,80,0,${0.28 + 0.1*Math.sin(t*1.4)})`);
+    gL.addColorStop(1, 'rgba(255,80,0,0)');
+    ctx.fillStyle = gL; ctx.fillRect(82, 182, 100, 318);
+
+    const gR = ctx.createLinearGradient(818, 0, 720, 0);
+    gR.addColorStop(0, `rgba(255,80,0,${0.28 + 0.1*Math.sin(t*1.2)})`);
+    gR.addColorStop(1, 'rgba(255,80,0,0)');
+    ctx.fillStyle = gR; ctx.fillRect(718, 182, 100, 318);
+  }
+
+  // ── Volcano: atmospheric effects drawn after players ─────
+  function drawVolcanoAtmosphere() {
+    const t = Date.now() / 1000;
+    // Lava drips from the top wall edge
+    for (let i = 0; i < 7; i++) {
+      const seed = i * 193.7;
+      const x = 110 + (seed * 131.3) % 660;
+      const speed = 38 + (i % 4) * 12;
+      const phase = (seed * 0.28) % 1;
+      const rawY  = ((t * speed * 0.012 + phase) % 1);
+      const y = 182 + rawY * 72;
+      const alpha = 1 - rawY;
+      const r = 2 + (i % 3);
+      ctx.save();
+      ctx.fillStyle = `rgba(255,${40 + (i%3)*25},0,${alpha})`;
+      ctx.beginPath(); ctx.arc(x|0, y|0, r, 0, Math.PI*2); ctx.fill();
+      // drip tail
+      ctx.strokeStyle = `rgba(255,${30 + (i%3)*20},0,${alpha * 0.5})`;
+      ctx.lineWidth = r * 0.6;
+      ctx.beginPath(); ctx.moveTo(x|0, (y - r)|0); ctx.lineTo(x|0, (y - r*4)|0); ctx.stroke();
+      ctx.restore();
+    }
+
+    // Eruption overlay & countdown banner
+    if (state.eruptionActive > 0) {
+      const ep = 0.5 + 0.5 * Math.sin(t * 8);
+      // Red floor pulse
+      ctx.fillStyle = `rgba(255,30,0,${0.07 * ep})`;
+      ctx.fillRect(82, 182, 736, 318);
+      // Top-wall banner
+      const bAlpha = Math.min(1, state.eruptionActive / 1.5) * (0.75 + 0.25 * ep);
+      ctx.save();
+      ctx.fillStyle = `rgba(90,0,0,${bAlpha * 0.9})`;
+      rrect(180, 22, 540, 32, 6, null, null);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255,${90 + Math.round(ep*80)},0,${bAlpha})`;
+      ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`ERUPTION! ${Math.ceil(state.eruptionActive)}s remaining — orders expiring faster!`, 450, 38);
+      ctx.restore();
+    }
+  }
+
   // ── Subtle CRT scanlines ─────────────────────────────────
   function drawScanlines(){
     ctx.fillStyle='rgba(0,0,0,0.04)';
@@ -1473,6 +1969,7 @@ const Game = (() => {
     if(!canvas||!state.player) return;
     drawWalls();
     drawFloor();
+    if (state.cfg.theme === 'volcano') drawLavaFloor();
     state.stations.forEach(drawStation);
     drawTargetArrows();
     drawCustomers();
@@ -1483,6 +1980,7 @@ const Game = (() => {
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText(f.text,f.x,f.y); ctx.globalAlpha=1;
     });
+    if (state.cfg.theme === 'volcano') drawVolcanoAtmosphere();
     drawHUD();
     if(state.phase==='done'||state.phase==='failed') drawLevelEnd();
     if(state.miniGame?.active) drawMiniGame();

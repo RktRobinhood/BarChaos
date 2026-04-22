@@ -476,12 +476,13 @@ const Main = (() => {
       { n: 3, name: 'Mojito Madness',  pass: 1200, cat: '+ Mojito variants' },
       { n: 4, name: 'Blender Night',   pass: 1500, cat: '+ Blend & Sours' },
       { n: 5, name: 'Full Bar Chaos',  pass: 2000, cat: 'Full menu' },
+      { n: 6, name: '🌋 Volcano Bar',  pass: 2500, cat: 'Full menu + heat spikes + eruptions', volcano: true },
     ];
     cont.innerHTML = levels.map(l => {
       const hs = Storage.getHighScore(l.n);
       const done = hs >= l.pass;
       return `
-        <div class="lv-card ${done ? 'cleared' : ''}" onclick="Main.selectLevel(${l.n})">
+        <div class="lv-card ${done ? 'cleared' : ''} ${l.volcano ? 'volcano' : ''}" onclick="Main.selectLevel(${l.n})">
           <div class="lv-num">Level ${l.n}</div>
           <div class="lv-name">${l.name}</div>
           <div class="lv-cat">${l.cat}</div>

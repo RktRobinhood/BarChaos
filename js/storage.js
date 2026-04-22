@@ -450,23 +450,44 @@ const SHOP_ITEMS = [
   { id:'p_tips',   type:'passive', name:'Tip Magnet',   desc:'Earn 25% more DKK tips per drink.',       icon:'💰', price:300, color:'#6EE7B7' },
   { id:'p_hint',   type:'passive', name:'Sharp Mind',   desc:'Station hints appear after 3s not 5s.',   icon:'💡', price:180, color:'#74B9FF' },
   { id:'p_time',   type:'passive', name:'Sommelier',    desc:'Begin every run with +20s on the clock.', icon:'⏱', price:320, color:'#A29BFE' },
-  // Hat cosmetics
-  { id:'c_hat_red',    type:'cosmetic', slot:'hat', name:'Red Toque',      price:60,  color:'#EF4444' },
-  { id:'c_hat_blue',   type:'cosmetic', slot:'hat', name:'Cobalt Toque',   price:60,  color:'#3B82F6' },
-  { id:'c_hat_green',  type:'cosmetic', slot:'hat', name:'Forest Toque',   price:60,  color:'#22C55E' },
-  { id:'c_hat_purple', type:'cosmetic', slot:'hat', name:'Violet Toque',   price:60,  color:'#A855F7' },
-  { id:'c_hat_gold',   type:'cosmetic', slot:'hat', name:'Gold Toque',     price:120, color:'#FFD700' },
-  { id:'c_hat_black',  type:'cosmetic', slot:'hat', name:'Midnight Toque', price:80,  color:'#1A1A2E' },
-  // Apron cosmetics
-  { id:'c_apron_navy',   type:'cosmetic', slot:'apron', name:'Navy Apron',   price:80,  color:'#1E3A5F' },
-  { id:'c_apron_black',  type:'cosmetic', slot:'apron', name:'Black Apron',  price:80,  color:'#1A1A1A' },
-  { id:'c_apron_forest', type:'cosmetic', slot:'apron', name:'Forest Apron', price:80,  color:'#1A4A2A' },
-  { id:'c_apron_purple', type:'cosmetic', slot:'apron', name:'Royal Apron',  price:100, color:'#4A1A6A' },
-  { id:'c_apron_wine',   type:'cosmetic', slot:'apron', name:'Wine Apron',   price:100, color:'#6A1A2A' },
-  // Accessories
-  { id:'c_acc_bowtie', type:'cosmetic', slot:'acc', name:'Gold Bow Tie', price:100, color:'#FFD700' },
-  { id:'c_acc_shades', type:'cosmetic', slot:'acc', name:'Sunglasses',   price:120, color:'#111111' },
-  { id:'c_acc_tache',  type:'cosmetic', slot:'acc', name:'Moustache',    price:80,  color:'#2A1A0A' },
+  // ── Hats ─────────────────────────────────────────────────
+  // Color toques — full chef-hat tinted in the chosen colour
+  { id:'c_hat_red',    type:'cosmetic', slot:'hat', name:'Red Toque',      desc:'Full scarlet chef hat.',      icon:'🎩', price:60,  color:'#EF4444' },
+  { id:'c_hat_blue',   type:'cosmetic', slot:'hat', name:'Cobalt Toque',   desc:'Full cobalt chef hat.',       icon:'🎩', price:60,  color:'#3B82F6' },
+  { id:'c_hat_green',  type:'cosmetic', slot:'hat', name:'Forest Toque',   desc:'Full forest-green chef hat.', icon:'🎩', price:60,  color:'#22C55E' },
+  { id:'c_hat_purple', type:'cosmetic', slot:'hat', name:'Violet Toque',   desc:'Full violet chef hat.',       icon:'🎩', price:60,  color:'#A855F7' },
+  { id:'c_hat_gold',   type:'cosmetic', slot:'hat', name:'Gold Toque',     desc:'Full gold chef hat.',         icon:'🎩', price:120, color:'#FFD700' },
+  { id:'c_hat_black',  type:'cosmetic', slot:'hat', name:'Midnight Toque', desc:'Full midnight-black hat.',    icon:'🎩', price:80,  color:'#1A1A2E' },
+  // Exotic hat shapes
+  { id:'c_hat_cowboy', type:'cosmetic', slot:'hat', name:'The Cowboy',     desc:'Wide-brim leather cowboy hat.', icon:'🤠', price:180, color:'#8B5A2F' },
+  { id:'c_hat_crown',  type:'cosmetic', slot:'hat', name:'Diamond Crown',  desc:'5-point gold crown with gems.', icon:'👑', price:500, color:'#FFD700' },
+  { id:'c_hat_wizard', type:'cosmetic', slot:'hat', name:'Wizard Hat',     desc:'Towering purple sorcerer cone.', icon:'🧙', price:250, color:'#7C3AED' },
+  { id:'c_hat_party',  type:'cosmetic', slot:'hat', name:'Party Cone',     desc:'Rainbow-striped birthday cone.', icon:'🎉', price:120, color:'#EC4899' },
+  { id:'c_hat_viking', type:'cosmetic', slot:'hat', name:'Viking Helm',    desc:'Steel dome with ivory horns.',   icon:'⚔️', price:350, color:'#9CA3AF' },
+  { id:'c_hat_flames', type:'cosmetic', slot:'hat', name:'Flame Crown',    desc:'Living fire erupting from your head.', icon:'🔥', price:400, color:'#FF4500' },
+  // ── Aprons ───────────────────────────────────────────────
+  // Solid colour — entire body tinted
+  { id:'c_apron_navy',   type:'cosmetic', slot:'apron', name:'Navy Apron',   desc:'Deep navy uniform.',        icon:'👘', price:80,  color:'#1E3A5F' },
+  { id:'c_apron_black',  type:'cosmetic', slot:'apron', name:'Black Apron',  desc:'All-black uniform.',        icon:'👘', price:80,  color:'#111111' },
+  { id:'c_apron_forest', type:'cosmetic', slot:'apron', name:'Forest Apron', desc:'Deep forest-green uniform.',icon:'👘', price:80,  color:'#1A4A2A' },
+  { id:'c_apron_purple', type:'cosmetic', slot:'apron', name:'Royal Apron',  desc:'Royal purple uniform.',     icon:'👘', price:100, color:'#4A1A6A' },
+  { id:'c_apron_wine',   type:'cosmetic', slot:'apron', name:'Wine Apron',   desc:'Rich burgundy uniform.',    icon:'👘', price:100, color:'#6A1A2A' },
+  // Patterned aprons
+  { id:'c_apron_stripes', type:'cosmetic', slot:'apron', name:'Candy Stripes',  desc:'Bold red & white candy-cane stripes.', icon:'🍭', price:150, color:'#EF4444' },
+  { id:'c_apron_checker', type:'cosmetic', slot:'apron', name:'Checkerboard',   desc:'Classic black & white squares.',       icon:'♟', price:150, color:'#111111' },
+  { id:'c_apron_rainbow', type:'cosmetic', slot:'apron', name:'Rainbow Burst',  desc:'Full-spectrum rainbow uniform.',        icon:'🌈', price:200, color:'#A855F7' },
+  { id:'c_apron_tuxedo',  type:'cosmetic', slot:'apron', name:'Tuxedo',         desc:'Sharp black tux with red bow-tie.',    icon:'🤵', price:280, color:'#111111' },
+  { id:'c_apron_flames',  type:'cosmetic', slot:'apron', name:'Flame Burst',    desc:'Burning fire pattern all over.',       icon:'🔥', price:350, color:'#FF4500' },
+  // ── Accessories ──────────────────────────────────────────
+  { id:'c_acc_bowtie',    type:'cosmetic', slot:'acc', name:'Giant Bow Tie',   desc:'Huge gold bow tie you cannot miss.',    icon:'🎀', price:100, color:'#FFD700' },
+  { id:'c_acc_shades',    type:'cosmetic', slot:'acc', name:'Mirror Shades',   desc:'Reflective aviator sunglasses.',        icon:'🕶', price:120, color:'#88CCFF' },
+  { id:'c_acc_tache',     type:'cosmetic', slot:'acc', name:'Handlebar Moustache', desc:'Magnificent waxed handlebar.',      icon:'🥸', price:80,  color:'#3D1C00' },
+  { id:'c_acc_mohawk',    type:'cosmetic', slot:'acc', name:'Mohawk',          desc:'Towering rainbow mohawk spikes.',       icon:'🤘', price:200, color:'#FF1493' },
+  { id:'c_acc_halo',      type:'cosmetic', slot:'acc', name:'Halo',            desc:'Glowing golden halo above your head.',  icon:'😇', price:300, color:'#FFD700' },
+  { id:'c_acc_chain',     type:'cosmetic', slot:'acc', name:'Gold Chain',      desc:'Thick gold chain + pendant.',           icon:'📿', price:180, color:'#FFD700' },
+  { id:'c_acc_neonshades',type:'cosmetic', slot:'acc', name:'Neon Cat-Eyes',   desc:'Oversized hot-pink cat-eye glasses.',   icon:'😎', price:220, color:'#FF00FF' },
+  { id:'c_acc_beard',     type:'cosmetic', slot:'acc', name:'Mega Beard',      desc:'Enormous lumberjack beard.',            icon:'🧔', price:150, color:'#5C3317' },
+  { id:'c_acc_stars',     type:'cosmetic', slot:'acc', name:'Star Aura',       desc:'Animated golden stars orbit you.',      icon:'⭐', price:400, color:'#FFD700' },
 ];
 
 // ── Storage module ──────────────────────────────────────────
