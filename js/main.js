@@ -9,11 +9,14 @@ const Main = (() => {
   const CANVAS_H = 640;
 
   let canvas, ctx;
-  let lastTime   = 0;
-  let gameState  = 'mainMenu';
-  let numPlayers = 1;
+  let lastTime    = 0;
+  let gameState   = 'mainMenu';
   let currentLevel = 1;
-  const keys     = {};
+  const keys      = {};
+
+  // ── Multiplayer session state ─────────────────────────────
+  let mpSession = { active:false, isHost:false, levelNum:1, playerCount:1 };
+  let lastInputSend = 0;
 
   // ── Boot ─────────────────────────────────────────────────
   function boot() {
@@ -48,6 +51,8 @@ const Main = (() => {
     }, { passive: false });
 
     buildMenuStudyUI();
+    // Wire MP levels into startLevel lookup
+    Game._initMpLevels();
     setState('mainMenu');
     requestAnimationFrame(loop);
   }
@@ -70,12 +75,15 @@ const Main = (() => {
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     if (gameState === 'campaign') {
-      Game.update(dt, keys);
-      Game.render(ctx);
-      // Check level end
-      if (Game.getPhase() === 'done') {
-        // Still rendering via Game.render (shows end screen)
+      if (mpSession.active && !mpSession.isHost) {
+        // MP client: predict local movement + tick floats
+        Game.clientUpdate(dt, keys);
+        sendMpInputs(ts);
+      } else {
+        // SP or MP host
+        Game.update(dt, keys);
       }
+      Game.render(ctx);
     } else if (gameState === 'training') {
       Training.update(dt);
       Training.render();
@@ -104,7 +112,7 @@ const Main = (() => {
   // ── State machine ────────────────────────────────────────
   const SCREENS = ['mainMenu','levelSelect',
                    'campaign','trainingSelect','training',
-                   'menuStudy','settings','shop'];
+                   'menuStudy','settings','shop','lobby'];
 
   function setState(s, opts = {}) {
     gameState = s;
@@ -117,8 +125,12 @@ const Main = (() => {
     const tc = document.getElementById('touch-controls');
     if (tc) tc.classList.toggle('visible', s === 'campaign');
 
-    if (s === 'campaign') {
+    if (s === 'campaign' && !opts.skipGameStart) {
       Game.startLevel(opts.level || currentLevel, { keepUpgrades: !!opts.keepUpgrades });
+    }
+    if (s === 'lobby') {
+      buildLobbyLevelSelect();
+      resetLobbyUI();
     }
     if (s === 'training' && opts.drinkId) {
       if (opts.quizDirect) Training.startQuizDirect(opts.drinkId);
@@ -145,20 +157,30 @@ const Main = (() => {
 
     if (gameState === 'campaign') {
       Game.handleKeyDown(e.key);
-      if (e.key === 'Escape') { setState('mainMenu'); return; }
+      if (e.key === 'Escape') {
+        if (mpSession.active) { lobbyLeave(); }
+        else { setState('mainMenu'); }
+        return;
+      }
 
       if (e.key === 'Enter') {
-        const phase = Game.getPhase();
+        const phase  = Game.getPhase();
         const passed = Game.isLevelPassed();
 
+        if (mpSession.active) {
+          // MP: return to lobby on end
+          if (phase === 'done' || phase === 'failed') {
+            setState('lobby');
+          }
+          return;
+        }
+
         if (phase === 'done' && passed) {
-          // Wait until upgrade has been picked (or skip if no upgrade shown)
           if (!Game.isUpgradePicked()) return;
           if (currentLevel < Game.getLevelCount()) currentLevel++;
           else { setState('levelSelect'); return; }
           setState('campaign', { level: currentLevel, keepUpgrades: true });
         } else if (phase === 'done' || phase === 'failed') {
-          // Retry same level, keep any upgrades earned so far
           setState('campaign', { level: currentLevel, keepUpgrades: true });
         }
       }
@@ -182,6 +204,7 @@ const Main = (() => {
     if (gameState === 'settings'      && e.key === 'Escape') { setState('mainMenu'); return; }
     if (gameState === 'shop'          && e.key === 'Escape') { setState('mainMenu'); return; }
     if (gameState === 'levelSelect'   && e.key === 'Escape') { setState('mainMenu'); return; }
+    if (gameState === 'lobby'         && e.key === 'Escape') { lobbyLeave(); return; }
   }
 
   // Simple focus-based keyboard navigation for HTML button lists
@@ -499,6 +522,220 @@ const Main = (() => {
     setState('campaign', { level: n });
   }
 
+  // ── MP: throttled input send (30 Hz max) ─────────────────
+  function sendMpInputs(ts) {
+    if (ts - lastInputSend < 33) return;
+    lastInputSend = ts;
+    const vx = (keys['a']||keys['ArrowLeft'] ||keys['touch_left'])  ? -1
+             : (keys['d']||keys['ArrowRight']||keys['touch_right']) ?  1 : 0;
+    const vy = (keys['w']||keys['ArrowUp']   ||keys['touch_up'])    ? -1
+             : (keys['s']||keys['ArrowDown'] ||keys['touch_down'])  ?  1 : 0;
+    Netplay.sendInput({ type:'input', vx, vy });
+  }
+
+  // ── Lobby ─────────────────────────────────────────────────
+  let _lobbyTab = 'create';
+
+  function buildLobbyLevelSelect() {
+    const allLevels = [
+      { n:1, name:'Opening Night' }, { n:2, name:'Cocktail Hour' },
+      { n:3, name:'Mojito Madness' }, { n:4, name:'Blender Night' },
+      { n:5, name:'Full Bar Chaos' }, { n:6, name:'Volcano Bar' },
+      { n:7, name:'Cocktail Relay ★ MP' }, { n:8, name:'Team Chaos ★ MP' },
+    ];
+    const opts = allLevels.map(l => `<option value="${l.n}">${l.n} — ${l.name}</option>`).join('');
+    const s1 = document.getElementById('lb-level');
+    const s2 = document.getElementById('lb-level-start');
+    if (s1) { s1.innerHTML = opts; s1.value = '7'; } // default to MP map
+    if (s2) { s2.innerHTML = opts; s2.value = '7'; }
+  }
+
+  function resetLobbyUI() {
+    _lobbyTab = 'create';
+    document.getElementById('ltab-create')?.classList.add('active');
+    document.getElementById('ltab-join')?.classList.remove('active');
+    document.getElementById('lobby-form-create').style.display = '';
+    document.getElementById('lobby-form-join').style.display   = 'none';
+    document.getElementById('lobby-waiting').style.display     = 'none';
+    document.getElementById('lobby-error').textContent         = '';
+    document.getElementById('lobby-host-controls').style.display = 'none';
+  }
+
+  function lobbyTab(tab) {
+    _lobbyTab = tab;
+    document.getElementById('ltab-create')?.classList.toggle('active', tab === 'create');
+    document.getElementById('ltab-join')?.classList.toggle('active',  tab === 'join');
+    document.getElementById('lobby-form-create').style.display = tab === 'create' ? '' : 'none';
+    document.getElementById('lobby-form-join').style.display   = tab === 'join'   ? '' : 'none';
+    document.getElementById('lobby-waiting').style.display     = 'none';
+    document.getElementById('lobby-error').textContent         = '';
+  }
+
+  function showLobbyWaiting() {
+    document.getElementById('lobby-form-create').style.display = 'none';
+    document.getElementById('lobby-form-join').style.display   = 'none';
+    document.getElementById('lobby-waiting').style.display     = '';
+  }
+
+  function showLobbyError(msg) {
+    const el = document.getElementById('lobby-error');
+    if (el) el.textContent = msg;
+  }
+
+  function refreshLobbyPlayers() {
+    const el = document.getElementById('lobby-players');
+    if (!el) return;
+    const total = mpSession.playerCount || Netplay.getPlayerCount();
+    const PLAYER_COLORS = ['#FF6B6B','#74B9FF','#55EFC4','#FDCB6E'];
+    let html = '';
+    for (let i = 0; i < Math.max(total, 1); i++) {
+      const isLocal = i === Netplay.getLocalPlayerIdx();
+      html += `<div class="lobby-player-slot ${i < total ? 'connected' : ''}" style="border-color:${PLAYER_COLORS[i]}">
+        <span class="lp-dot" style="background:${i < total ? PLAYER_COLORS[i] : '#333'}"></span>
+        <span class="lp-name" style="color:${PLAYER_COLORS[i]}">P${i+1}${isLocal ? ' (you)' : ''}</span>
+        <span class="lp-status">${i < total ? '● Ready' : '○ Waiting...'}</span>
+      </div>`;
+    }
+    // Empty slots up to 4
+    for (let i = total; i < 4; i++) {
+      html += `<div class="lobby-player-slot empty" style="border-color:#333">
+        <span class="lp-dot" style="background:#333"></span>
+        <span class="lp-name" style="color:#555">P${i+1}</span>
+        <span class="lp-status" style="color:#444">○ Empty</span>
+      </div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  async function lobbyCreate() {
+    const name = (document.getElementById('lb-create-name')?.value || '').trim();
+    const pass =  document.getElementById('lb-create-pass')?.value  || '';
+    if (!name) { showLobbyError('Please enter a room name.'); return; }
+
+    showLobbyError('');
+    showLobbyWaiting();
+    document.getElementById('lb-status').textContent = 'Creating room…';
+
+    try {
+      await Netplay.createRoom(name, pass, {
+        onPlayerJoin: (idx, total) => {
+          mpSession.playerCount = total;
+          refreshLobbyPlayers();
+          const el = document.getElementById('lb-status');
+          if (el) el.textContent = `Room ready — ${total} player${total>1?'s':''} connected`;
+        },
+        onPlayerLeave: (idx, total) => {
+          mpSession.playerCount = total;
+          refreshLobbyPlayers();
+        },
+        onInput: (playerIdx, input) => {
+          Game.applyClientInput(playerIdx, input);
+        },
+      });
+
+      mpSession.active = true; mpSession.isHost = true;
+      mpSession.levelNum = parseInt(document.getElementById('lb-level')?.value) || 1;
+      mpSession.playerCount = 1;
+
+      document.getElementById('lb-status').textContent = `Room "${name}" open — share name & password`;
+      document.getElementById('lobby-host-controls').style.display = '';
+      document.getElementById('lobby-client-hint').style.display  = 'none';
+      // Sync start-level select with creation select
+      const startSel = document.getElementById('lb-level-start');
+      const createSel = document.getElementById('lb-level');
+      if (startSel && createSel) startSel.value = createSel.value;
+      refreshLobbyPlayers();
+
+      // Start state sync immediately so clients can see lobby state
+      Netplay.startStateSync(() => Game.getNetState());
+      // Host uses direct key input — no MP interact callback needed
+      Game.setMpInteractCallback(null);
+
+    } catch (err) {
+      resetLobbyUI();
+      showLobbyError(err.message || 'Could not create room.');
+    }
+  }
+
+  async function lobbyJoin() {
+    const name = (document.getElementById('lb-join-name')?.value || '').trim();
+    const pass =  document.getElementById('lb-join-pass')?.value  || '';
+    if (!name) { showLobbyError('Please enter the room name.'); return; }
+
+    showLobbyError('');
+    showLobbyWaiting();
+    document.getElementById('lb-status').textContent = 'Connecting…';
+
+    try {
+      const result = await Netplay.joinRoom(name, pass, {
+        onPlayerCount: total => {
+          mpSession.playerCount = total;
+          refreshLobbyPlayers();
+        },
+        onGameStart: (levelNum, total) => {
+          mpSession.playerCount = total;
+          startMpGame(levelNum, total);
+        },
+        onState: netState => {
+          if (gameState === 'campaign') Game.applyNetState(netState);
+        },
+        onDisconnect: msg => {
+          if (gameState === 'campaign') {
+            mpSession.active = false;
+            setState('lobby');
+          }
+          showLobbyError(msg || 'Disconnected from host.');
+        },
+      });
+
+      mpSession.active = true; mpSession.isHost = false;
+      mpSession.playerCount = result.totalPlayers;
+
+      document.getElementById('lb-status').textContent =
+        `Joined as Player ${result.playerIdx + 1} — waiting for host to start…`;
+      document.getElementById('lobby-host-controls').style.display = 'none';
+      document.getElementById('lobby-client-hint').style.display  = '';
+      refreshLobbyPlayers();
+
+      // Client routes interact through network
+      Game.setMpInteractCallback(input => Netplay.sendInput(input));
+
+    } catch (err) {
+      resetLobbyUI();
+      showLobbyError(err.message || 'Could not join room.');
+    }
+  }
+
+  function lobbyStartGame() {
+    if (!mpSession.isHost) return;
+    // Use the start-game select if available (shown in waiting area), else creation select
+    const levelNum = parseInt(
+      document.getElementById('lb-level-start')?.value ||
+      document.getElementById('lb-level')?.value
+    ) || 7;
+    mpSession.levelNum   = levelNum;
+    mpSession.playerCount = Netplay.getPlayerCount();
+
+    startMpGame(levelNum, mpSession.playerCount);
+    Netplay.startGame(levelNum); // notify clients
+  }
+
+  function startMpGame(levelNum, totalPlayers) {
+    Game.startMultiplayer(levelNum, Netplay.getLocalPlayerIdx(), totalPlayers, {
+      isHost: mpSession.isHost,
+    });
+    currentLevel = levelNum;
+    mpSession.active = true;
+    setState('campaign', { skipGameStart: true });
+  }
+
+  function lobbyLeave() {
+    Netplay.disconnect();
+    mpSession = { active:false, isHost:false, levelNum:1, playerCount:1 };
+    Game.setMpInteractCallback(null);
+    setState('mainMenu');
+  }
+
   // ── Touch / virtual D-pad ────────────────────────────────
   function touchStart(dir) { keys['touch_' + dir] = true; }
   function touchEnd(dir)   { keys['touch_' + dir] = false; }
@@ -669,6 +906,8 @@ const Main = (() => {
     refreshStudyGrid, selectLevel,
     touchStart, touchEnd, touchInteract,
     shopTab, shopBuy, shopEquip, shopUnequip, shopPreview,
+    // Multiplayer lobby
+    lobbyTab, lobbyCreate, lobbyJoin, lobbyStartGame, lobbyLeave,
   };
 })();
 

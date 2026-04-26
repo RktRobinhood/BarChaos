@@ -24,6 +24,9 @@
         <button class="nav-btn" onclick="Main.setState('levelSelect')">
           🎮 Campaign
         </button>
+        <button class="nav-btn mp-btn" onclick="Main.setState('lobby')">
+          🌐 Multiplayer
+        </button>
         <button class="nav-btn" onclick="Main.setState('trainingSelect')">
           📚 Training Mode
         </button>
@@ -38,8 +41,8 @@
         </button>
       </nav>
       <div class="menu-hint">
-        <span>P1: WASD + E</span>
-        <span>P2: Arrows + /</span>
+        <span>WASD + E to play</span>
+        <span>ESC = menu</span>
       </div>
     </div>
 
@@ -152,6 +155,65 @@
       </div>
     </div>
 
+    <!-- ── Multiplayer Lobby ──────────────────────────────── -->
+    <div id="screen-lobby" class="screen">
+      <div class="lobby-box">
+        <div class="lobby-title">🌐 Multiplayer</div>
+        <div class="lobby-sub">Up to 4 players · Each on their own device · P2P encrypted</div>
+
+        <!-- Tab switcher -->
+        <div class="lobby-tabs">
+          <button class="ltab active" id="ltab-create" onclick="Main.lobbyTab('create')">🏠 Create Room</button>
+          <button class="ltab"        id="ltab-join"   onclick="Main.lobbyTab('join')">🚪 Join Room</button>
+        </div>
+
+        <!-- Create form -->
+        <div id="lobby-form-create" class="lobby-form">
+          <label class="lb-label">Room Name
+            <input id="lb-create-name" class="lb-input" placeholder="e.g. Shaken Not Stirred" maxlength="32">
+          </label>
+          <label class="lb-label">Password
+            <input id="lb-create-pass" class="lb-input" type="password" placeholder="Set a room password" maxlength="32">
+          </label>
+          <label class="lb-label">Level
+            <select id="lb-level" class="lb-input lb-select"></select>
+          </label>
+          <button class="btn-lobby-action" onclick="Main.lobbyCreate()">🏠 Create &amp; Host</button>
+          <p class="lobby-hint">Share the room name &amp; password with friends — they join from their own device.</p>
+        </div>
+
+        <!-- Join form -->
+        <div id="lobby-form-join" class="lobby-form" style="display:none">
+          <label class="lb-label">Room Name
+            <input id="lb-join-name" class="lb-input" placeholder="Enter room name exactly" maxlength="32">
+          </label>
+          <label class="lb-label">Password
+            <input id="lb-join-pass" class="lb-input" type="password" placeholder="Room password" maxlength="32">
+          </label>
+          <button class="btn-lobby-action" onclick="Main.lobbyJoin()">🚪 Join Room</button>
+        </div>
+
+        <!-- Waiting area (shown after create/join) -->
+        <div id="lobby-waiting" style="display:none">
+          <div class="lobby-status-row">
+            <span id="lb-status" class="lb-status-text">Connecting…</span>
+          </div>
+          <div id="lobby-players" class="lobby-player-list"></div>
+          <div id="lobby-host-controls" style="display:none">
+            <div class="lobby-level-row">
+              <span class="lb-level-label">Level:</span>
+              <select id="lb-level-start" class="lb-input lb-select lb-small"></select>
+            </div>
+            <button class="btn-lobby-start" onclick="Main.lobbyStartGame()">▶ Start Game</button>
+          </div>
+          <p class="lobby-hint" id="lobby-client-hint" style="display:none">Waiting for the host to start the game…</p>
+        </div>
+
+        <div id="lobby-error" class="lobby-error"></div>
+        <button class="btn-back" onclick="Main.lobbyLeave()">◀ Back</button>
+      </div>
+    </div>
+
   </div><!-- #ui -->
 
   <!-- ── Touch D-pad (shown only during campaign) ─────────── -->
@@ -175,9 +237,12 @@
   </div>
 
   <!-- ── Scripts (load order matters) ───────────────────── -->
+  <!-- PeerJS: WebRTC P2P transport (DTLS-encrypted data channels) -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/training.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/netplay.js"></script>
   <script src="js/main.js"></script>
 
 </body>

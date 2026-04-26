@@ -158,6 +158,55 @@ const Game = (() => {
     },
   ];
 
+  // ── Multiplayer player colours & start positions ─────────
+  const PLAYER_COLORS = ['#FF6B6B','#74B9FF','#55EFC4','#FDCB6E'];
+  const PLAYER_STARTS = [
+    { x: 240, y: 350 },
+    { x: 660, y: 350 },
+    { x: 240, y: 290 },
+    { x: 660, y: 290 },
+  ];
+
+  // ── Two dedicated multiplayer relay maps ─────────────────
+  const MP_LEVEL_CONFIGS = [
+    {
+      num:7, name:'Cocktail Relay', duration:220, passScore:1800,
+      spawnInterval:14, maxOrders:6, orderTime:40, drinkCats:['build','shake','muddle'],
+      floor:['#D4C8B0','#C0B098'], wallBrick:'#5A3818', wallBrickLt:'#7A5030',
+      barWood:'#7A4A28', barWoodLt:'#9A6A40', barWoodDk:'#4A2808',
+      playerStart:{ x:240, y:350 }, mpOnly: true,
+      // Left zone: glass + spirits + mixers  |  Right zone: shake/blend/muddle + ice
+      // Centre: 2 PASS counters + syrups/garnish  |  Bottom: 2x serve + trash
+      stations:[
+        mkSt('glass_highball', 90,108,80,65), mkSt('glass_lowball',180,108,80,65), mkSt('glass_martini',270,108,80,65),
+        mkSt('syrups',  360,108,80,65), mkSt('garnish',450,108,80,65),
+        mkSt('shake',  542,108,80,65), mkSt('blend',  632,108,80,65), mkSt('muddle',722,108,80,65),
+        mkSt('spirits',  10,215,72,100), mkSt('mixers',10,330,72,100),
+        mkSt('counter',  315,288,90,58), mkSt('counter2',495,288,90,58),
+        mkSt('trash',    395,415,80,58),
+        mkSt('ice_cylinder',818,215,72,82), mkSt('ice_crushed',818,310,72,82), mkSt('ice_large',818,408,72,78),
+        mkSt('serve1',  120,508,128,56), mkSt('serve2', 652,508,128,56),
+      ],
+    },
+    {
+      num:8, name:'Team Chaos', duration:200, passScore:2400,
+      spawnInterval:11, maxOrders:7, orderTime:34, drinkCats:['build','shake','muddle','blend'],
+      floor:['#1C1C2E','#141420'], wallBrick:'#08081A', wallBrickLt:'#1A1A38',
+      barWood:'#0A0818', barWoodLt:'#241848', barWoodDk:'#040410',
+      playerStart:{ x:240, y:350 }, mpOnly: true,
+      stations:[
+        mkSt('glass_highball', 90,108,78,62), mkSt('glass_lowball',178,108,78,62), mkSt('glass_martini',266,108,78,62),
+        mkSt('syrups',  354,108,78,62), mkSt('garnish',442,108,78,62),
+        mkSt('shake',  532,108,78,62), mkSt('blend',  620,108,78,62), mkSt('muddle',708,108,78,62),
+        mkSt('spirits',  10,210,72,100), mkSt('mixers',10,325,72,100),
+        mkSt('counter',  310,285,90,58), mkSt('counter2',500,285,90,58),
+        mkSt('trash',    390,415,80,58),
+        mkSt('ice_cylinder',818,210,72,80), mkSt('ice_crushed',818,303,72,80), mkSt('ice_large',818,398,72,80),
+        mkSt('serve1',  120,508,120,56), mkSt('serve2', 660,508,120,56),
+      ],
+    },
+  ];
+
   // Customer colours (distinct from player red)
   const CUST_COLORS = ['#74B9FF','#55EFC4','#FDCB6E','#E17055','#A29BFE','#FD79A8'];
   const CUST_PHRASES = [
@@ -168,6 +217,7 @@ const Game = (() => {
   ];
 
   let state = {};
+  let _mpInteractCallback = null; // set by Main for client-side interact routing
 
   // ── Audio ────────────────────────────────────────────────
   let audioCtx = null;
@@ -431,16 +481,21 @@ const Game = (() => {
   }
 
   function loseHeart() {
+    // Use the player currently in the mini-game (may differ from local player in MP)
+    const p = state.miniGame?.player || state.player;
     if (state.luckyPours > 0) {
       state.luckyPours--;
-      float(state.player.x, state.player.y - 30, '🍀 Lucky!', '#86EFAC');
+      float(p.x, p.y - 30, '🍀 Lucky!', '#86EFAC');
       sfxStep();
       return;
     }
-    const p = state.player;
     p.hearts = Math.max(0, (p.hearts ?? HEARTS_MAX) - 1);
     sfxHeart();
-    if (p.hearts <= 0) { closeMiniGame(); state.phase = 'failed'; }
+    // In MP: game over only when ALL players are out of hearts
+    const gameOver = state.mpMode
+      ? state.players.every(pl => pl.hearts <= 0)
+      : p.hearts <= 0;
+    if (gameOver) { closeMiniGame(); state.phase = 'failed'; }
   }
 
   // ── Player movement ──────────────────────────────────────
@@ -587,7 +642,17 @@ const Game = (() => {
     // 3 random unique upgrade choices for end-of-level pick
     const upgradeChoices = shuffle([...UPGRADES_POOL]).slice(0, 3);
 
-    state = {
+    const p0 = {
+      id:0, x:cfg.playerStart.x, y:cfg.playerStart.y,
+      vx:0, vy:0, radius:22, color:PLAYER_COLORS[0],
+      holding:null, busy:false, facing:'down', walkCycle:0,
+      stepTimer:0, hearts:HEARTS_MAX + heartBonus,
+      maxHearts: HEARTS_MAX + heartBonus,
+      speedMult,
+      cosmetics: Storage.getEquipped(), // included for MP broadcast
+    };
+
+    const stateObj = {
       levelNum, cfg, levelIdx: idx,
       time: cfg.duration + timeBonus, spawnTimer: 2,
       score:0, completedOrders:0, failedOrders:0,
@@ -606,15 +671,68 @@ const Game = (() => {
       eruptionActive: 0,
       quickMult,
       hintDelay: Math.max(1, 5 - pl('p_hint') * 0.8),
-      player: {
-        id:0, x:cfg.playerStart.x, y:cfg.playerStart.y,
-        vx:0, vy:0, radius:22, color:'#FF6B6B',
-        holding:null, busy:false, facing:'down', walkCycle:0,
-        stepTimer:0, hearts:HEARTS_MAX + heartBonus,
-        maxHearts: HEARTS_MAX + heartBonus,
-        speedMult,
-      },
+      players: [p0],
+      localPlayerIdx: 0,
+      mpMode: false,
+      isHost: true, // single player is always "host" of their own game
+      mpInputs: [{ vx:0, vy:0, interactEdge:false }],
     };
+    // `state.player` getter — all existing code that reads state.player keeps working
+    Object.defineProperty(stateObj, 'player', {
+      get() { return this.players[this.localPlayerIdx]; },
+      configurable: true,
+      enumerable: false,
+    });
+    state = stateObj;
+  }
+
+  // ── MP: initialise a multiplayer game session ─────────────
+  function startMultiplayer(levelNum, localPlayerIdx, totalPlayers, opts = {}) {
+    startLevel(levelNum, opts);
+
+    state.mpMode         = true;
+    state.isHost         = !!opts.isHost;
+    state.localPlayerIdx = localPlayerIdx;
+    state.mpInputs       = [];
+
+    const heartMax = state.players[0].maxHearts;
+    const spd      = state.players[0].speedMult;
+
+    // Build full players array
+    state.players = [];
+    for (let i = 0; i < totalPlayers; i++) {
+      const start = PLAYER_STARTS[i] || state.cfg.playerStart;
+      state.players.push({
+        id: i,
+        x: start.x, y: start.y,
+        vx: 0, vy: 0,
+        radius: 22,
+        color: PLAYER_COLORS[i] || '#FF6B6B',
+        holding: null, busy: false, facing: 'down', walkCycle: 0,
+        stepTimer: 0,
+        hearts: heartMax, maxHearts: heartMax, speedMult: spd,
+        cosmetics: i === localPlayerIdx ? Storage.getEquipped() : {},
+      });
+      state.mpInputs.push({ vx:0, vy:0, interactEdge:false });
+    }
+
+    // Add PASS counters + TRASH to existing SP maps that don't have them
+    if (!state.stations.some(s => s.type === 'counter')) {
+      const addSt = (id, x, y, w, h) => ({
+        id, x, y, w, h, ...STYPE[id],
+        item:null, processing:false, processTimer:0, processingPlayer:null,
+        heatBlocked:0, heatWarning:0, _heatBlockPending:false,
+      });
+      state.stations.push(addSt('counter',  330, 300, 90, 55));
+      state.stations.push(addSt('counter2', 480, 300, 90, 55));
+    }
+    if (!state.stations.some(s => s.type === 'trash')) {
+      state.stations.push({
+        id:'trash', x:400, y:415, w:80, h:55, ...STYPE['trash'],
+        item:null, processing:false, processTimer:0, processingPlayer:null,
+        heatBlocked:0, heatWarning:0, _heatBlockPending:false,
+      });
+    }
   }
 
   function update(dt, keys) {
@@ -638,7 +756,8 @@ const Game = (() => {
       const decayMult = state.eruptionActive > 0 ? 1.8 : 1;
       o.timeLeft -= dt * decayMult;
       if (o.timeLeft<=0) {
-        if (state.player.holding?.orderId===o.id) state.player.holding=null;
+        // Clear from any player who's holding it
+        state.players.forEach(p => { if (p.holding?.orderId===o.id) p.holding=null; });
         state.orders.splice(i,1); state.failedOrders++;
         state.score=Math.max(0,state.score-50); sfxFail();
       }
@@ -660,8 +779,57 @@ const Game = (() => {
 
     if (state.cfg.theme === 'volcano') updateVolcano(dt);
 
+    if (state.mpMode) {
+      // ── Multiplayer (host only runs this) ─────────────────
+      state.players.forEach((p, idx) => {
+        if (p.busy) { p.stepTimer += dt; return; }
+        p.stepTimer += dt;
+        let vx = 0, vy = 0;
+        if (idx === 0 && state.isHost) {
+          // Host's own player reads local keys
+          if (keys['w']||keys['ArrowUp']   ||keys['touch_up'])    vy=-1;
+          if (keys['s']||keys['ArrowDown'] ||keys['touch_down'])  vy= 1;
+          if (keys['a']||keys['ArrowLeft'] ||keys['touch_left'])  vx=-1;
+          if (keys['d']||keys['ArrowRight']||keys['touch_right']) vx= 1;
+        } else {
+          const inp = state.mpInputs[idx] || {};
+          vx = inp.vx || 0; vy = inp.vy || 0;
+        }
+        const len = Math.sqrt(vx*vx+vy*vy);
+        if (len>1){vx/=len;vy/=len;}
+        p.vx=vx; p.vy=vy;
+        if (len>0){ p.walkCycle+=dt*8; p.facing=vx>0?'right':vx<0?'left':vy>0?'down':'up'; }
+        movePlayer(p, dt);
+      });
+      // Process interact edges from remote players
+      state.players.forEach((p, idx) => {
+        if (idx === 0 && state.isHost) return; // host's interact via handleKeyDown
+        const inp = state.mpInputs[idx] || {};
+        if (inp.interactEdge) { inp.interactEdge = false; interact(p); }
+      });
+    } else {
+      // ── Single-player ─────────────────────────────────────
+      const p = state.player;
+      if (!p.busy) {
+        p.stepTimer += dt;
+        p.vx=0; p.vy=0;
+        if (keys['w']||keys['ArrowUp']   ||keys['touch_up'])    p.vy=-1;
+        if (keys['s']||keys['ArrowDown'] ||keys['touch_down'])  p.vy= 1;
+        if (keys['a']||keys['ArrowLeft'] ||keys['touch_left'])  p.vx=-1;
+        if (keys['d']||keys['ArrowRight']||keys['touch_right']) p.vx= 1;
+        const len=Math.sqrt(p.vx*p.vx+p.vy*p.vy);
+        if (len>1){p.vx/=len;p.vy/=len;}
+        if (len>0) p.walkCycle+=dt*8;
+        movePlayer(p,dt);
+      }
+    }
+  }
+
+  // ── Client-only prediction update (no game logic) ────────
+  function clientUpdate(dt, keys) {
+    if (!state.players || state.phase !== 'playing') return;
     const p = state.player;
-    if (!p.busy) {
+    if (p && !p.busy) {
       p.stepTimer += dt;
       p.vx=0; p.vy=0;
       if (keys['w']||keys['ArrowUp']   ||keys['touch_up'])    p.vy=-1;
@@ -670,12 +838,30 @@ const Game = (() => {
       if (keys['d']||keys['ArrowRight']||keys['touch_right']) p.vx= 1;
       const len=Math.sqrt(p.vx*p.vx+p.vy*p.vy);
       if (len>1){p.vx/=len;p.vy/=len;}
-      if (len>0) p.walkCycle+=dt*8;
-      movePlayer(p,dt);
+      if (len>0){ p.walkCycle+=dt*8; p.facing=p.vx>0?'right':p.vx<0?'left':p.vy>0?'down':'up'; }
+      movePlayer(p, dt);
     }
+    // Tick floats
+    state.floats = state.floats.filter(f=>{ f.y+=f.vy*dt; f.alpha-=dt/f.life; return f.alpha>0; });
   }
 
   function handleKeyDown(key) {
+    // MP client routes interact / mini-game input through network
+    if (state.mpMode && !state.isHost && _mpInteractCallback) {
+      if (state.miniGame?.active) {
+        if (key === 'Escape') { _mpInteractCallback({ type:'miniGameAction', action:'close' }); return; }
+        const idx = ['1','2','3','4'].indexOf(key);
+        if (idx !== -1) { _mpInteractCallback({ type:'miniGameOption', idx }); return; }
+        return;
+      }
+      if (state.phase === 'playing' && (key.toLowerCase()==='e' || key==='touch_interact')) {
+        _mpInteractCallback({ type:'input', interactEdge:true });
+        return;
+      }
+      if (state.phase !== 'playing') return; // upgrade picker blocked for clients
+      return;
+    }
+
     if (state.miniGame?.active) {
       if (key === 'Escape') { closeMiniGame(); return; }
       const idx = ['1','2','3','4'].indexOf(key);
@@ -717,8 +903,226 @@ const Game = (() => {
   }
 
   function handleClick(cx, cy) {
-    if (state.miniGame?.active) handleMiniGameClick(cx, cy);
+    if (!state.miniGame?.active) return;
+    if (state.mpMode && !state.isHost) {
+      // Client: translate click into action and send to host
+      if (state.miniGame.feedbackTimer > 0) return;
+      for (const btn of (state.miniGame.buttons || [])) {
+        if (cx>=btn.x && cx<=btn.x+btn.w && cy>=btn.y && cy<=btn.y+btn.h) {
+          if (_mpInteractCallback) _mpInteractCallback({ type:'miniGameAction', action:btn.action, value:btn.value });
+          // Show immediate local feedback based on known correctAnswer (educational game)
+          if (btn.action === 'selectIng') {
+            const correct = btn.value.toLowerCase() === state.miniGame.correctIng;
+            state.miniGame.feedback = correct ? 'correct' : 'wrong';
+            state.miniGame.feedbackMsg = correct ? '✓ Correct!' : `✗ That's ${btn.value} — wrong!`;
+            state.miniGame.feedbackTimer = correct ? 0.55 : 0.9;
+            if (!correct) state.miniGame.shakeTimer = 0.3;
+            correct ? sfxStep() : sfxWrong();
+          } else if (btn.action === 'selectAmt') {
+            const correct = btn.value === state.miniGame.correctAmt;
+            state.miniGame.feedback = correct ? 'correct' : 'wrong';
+            state.miniGame.feedbackMsg = correct ? `✓ ${btn.value} — perfect!` : `✗ ${btn.value} — wrong!`;
+            state.miniGame.feedbackTimer = correct ? 0.65 : 0.9;
+            if (!correct) state.miniGame.shakeTimer = 0.3;
+            correct ? sfxStep() : sfxWrong();
+          } else if (btn.action === 'close') {
+            state.miniGame = null;
+          }
+          break;
+        }
+      }
+    } else {
+      handleMiniGameClick(cx, cy);
+    }
   }
+
+  // ── MP: apply input received from a client (host only) ────
+  function applyClientInput(playerIdx, input) {
+    if (!state.mpMode || !state.isHost) return;
+    const inp = state.mpInputs[playerIdx];
+    if (!inp) return;
+
+    if (input.type === 'input') {
+      if (typeof input.vx === 'number') inp.vx = input.vx;
+      if (typeof input.vy === 'number') inp.vy = input.vy;
+      if (input.interactEdge) inp.interactEdge = true; // cleared in update()
+    } else if (input.type === 'miniGameAction') {
+      applyClientMiniGameAction(playerIdx, input.action, input.value);
+    } else if (input.type === 'miniGameOption') {
+      const mg = state.miniGame;
+      if (!mg?.active || mg.player?.id !== playerIdx || mg.feedbackTimer > 0) return;
+      if (mg.phase === 'ingredient' && typeof input.idx === 'number' && input.idx < mg.ingOptions.length) {
+        applyClientMiniGameAction(playerIdx, 'selectIng', mg.ingOptions[input.idx]);
+      } else if (mg.phase === 'amount' && mg.amtOptions && typeof input.idx === 'number' && input.idx < mg.amtOptions.length) {
+        applyClientMiniGameAction(playerIdx, 'selectAmt', mg.amtOptions[input.idx]);
+      }
+    }
+  }
+
+  function applyClientMiniGameAction(playerIdx, action, value) {
+    const mg = state.miniGame;
+    if (!mg?.active || mg.player?.id !== playerIdx || mg.feedbackTimer > 0) return;
+    if (action === 'selectIng') {
+      if (value.toLowerCase() === mg.correctIng) {
+        mg.selectedIng = value; mg.feedback='correct'; mg.lastResult='correct';
+        mg.feedbackMsg='✓ Correct!'; mg.feedbackTimer=0.55; sfxStep();
+      } else {
+        mg.feedback='wrong'; mg.lastResult='wrong';
+        mg.feedbackMsg=`✗ That's ${value} — wrong!`; mg.feedbackTimer=0.9; mg.shakeTimer=0.3;
+        loseHeart();
+        if (mg.player.holding) mg.player.holding.hadMistake=true;
+      }
+    } else if (action === 'selectAmt') {
+      if (value === mg.correctAmt) {
+        mg.feedback='correct'; mg.lastResult='correct';
+        mg.feedbackMsg=`✓ ${value} — perfect!`; mg.feedbackTimer=0.65; sfxStep();
+      } else {
+        mg.feedback='wrong'; mg.lastResult='wrong';
+        mg.feedbackMsg=`✗ ${value} — wrong!`; mg.feedbackTimer=0.9; mg.shakeTimer=0.3;
+        loseHeart();
+        if (mg.player.holding) mg.player.holding.hadMistake=true;
+      }
+    } else if (action === 'close') {
+      closeMiniGame();
+    }
+  }
+
+  // ── MP: compact state snapshot for broadcast (host) ───────
+  function getNetState() {
+    if (!state.players) return null;
+    return {
+      players: state.players.map(p => ({
+        id:p.id, x:p.x, y:p.y, vx:p.vx, vy:p.vy,
+        facing:p.facing, walkCycle:p.walkCycle,
+        hearts:p.hearts, maxHearts:p.maxHearts, busy:p.busy,
+        stepTimer:p.stepTimer,
+        holding: p.holding ? {
+          orderId:p.holding.orderId, drinkName:p.holding.drinkName,
+          step:p.holding.step, color:p.holding.color,
+          steps:p.holding.steps, hadMistake:p.holding.hadMistake,
+        } : null,
+        cosmetics: p.cosmetics || {},
+      })),
+      orders: state.orders.map(o => ({
+        id:o.id, timeLeft:o.timeLeft, maxTime:o.maxTime,
+        value:o.value, claimedBy:o.claimedBy,
+        custColor:o.custColor, phrase:o.phrase,
+        drink:{ id:o.drink.id, name:o.drink.name, color:o.drink.color, steps:o.drink.steps },
+      })),
+      stations: state.stations.map(s => ({
+        item: s.item ? {
+          orderId:s.item.orderId, drinkName:s.item.drinkName,
+          step:s.item.step, color:s.item.color, steps:s.item.steps,
+        } : null,
+        processing:s.processing, processTimer:s.processTimer,
+        heatBlocked:s.heatBlocked, heatWarning:s.heatWarning,
+      })),
+      score:state.score, time:state.time, phase:state.phase,
+      completedOrders:state.completedOrders, failedOrders:state.failedOrders,
+      eruptionActive:state.eruptionActive, luckyPours:state.luckyPours,
+      miniGame: state.miniGame?.active ? {
+        active:true, forPlayer:state.miniGame.player?.id,
+        phase:state.miniGame.phase,
+        stationType:state.miniGame.stationType,
+        ingOptions:state.miniGame.ingOptions,
+        amtOptions:state.miniGame.amtOptions,
+        correctIng:state.miniGame.correctIng,
+        correctAmt:state.miniGame.correctAmt,
+        parsed:state.miniGame.parsed,
+        feedback:state.miniGame.feedback,
+        feedbackMsg:state.miniGame.feedbackMsg,
+        feedbackTimer:state.miniGame.feedbackTimer,
+        shakeTimer:state.miniGame.shakeTimer,
+      } : null,
+    };
+  }
+
+  // ── MP: apply server state snapshot (clients) ─────────────
+  function applyNetState(ns) {
+    if (!state.mpMode || !ns) return;
+
+    // Sync all players — preserve local position prediction for own player
+    ns.players.forEach((np, i) => {
+      if (!state.players[i]) return;
+      const p = state.players[i];
+      if (i === state.localPlayerIdx) {
+        // Reconcile position: lerp small drift, snap large
+        const dx = np.x - p.x, dy = np.y - p.y;
+        const dist = Math.sqrt(dx*dx+dy*dy);
+        if (dist > 60) { p.x = np.x; p.y = np.y; }
+        else if (dist > 4) { p.x += dx * 0.3; p.y += dy * 0.3; }
+        p.hearts = np.hearts; p.maxHearts = np.maxHearts;
+        p.busy = np.busy; p.holding = np.holding;
+        if (np.cosmetics && Object.keys(np.cosmetics).length) p.cosmetics = np.cosmetics;
+      } else {
+        // Remote players: full sync
+        p.x=np.x; p.y=np.y; p.vx=np.vx; p.vy=np.vy;
+        p.facing=np.facing; p.walkCycle=np.walkCycle;
+        p.hearts=np.hearts; p.maxHearts=np.maxHearts;
+        p.busy=np.busy; p.holding=np.holding;
+        p.stepTimer=np.stepTimer;
+        if (np.cosmetics) p.cosmetics = np.cosmetics;
+      }
+    });
+
+    // Sync orders
+    state.orders = ns.orders.map(no => ({
+      ...no,
+      drink: no.drink, // drink is already a plain object with name/color/steps
+    }));
+
+    // Sync station mutable fields (item, processing, heat)
+    ns.stations.forEach((ns_s, i) => {
+      if (!state.stations[i]) return;
+      state.stations[i].item         = ns_s.item;
+      state.stations[i].processing   = ns_s.processing;
+      state.stations[i].processTimer = ns_s.processTimer;
+      state.stations[i].heatBlocked  = ns_s.heatBlocked;
+      state.stations[i].heatWarning  = ns_s.heatWarning;
+    });
+
+    state.score = ns.score; state.time = ns.time; state.phase = ns.phase;
+    state.completedOrders = ns.completedOrders; state.failedOrders = ns.failedOrders;
+    state.eruptionActive  = ns.eruptionActive;  state.luckyPours   = ns.luckyPours;
+
+    // Sync mini-game for local player
+    const nmg = ns.miniGame;
+    if (nmg?.active && nmg.forPlayer === state.localPlayerIdx) {
+      if (!state.miniGame) {
+        state.miniGame = {
+          active:true,
+          player: state.players[state.localPlayerIdx],
+          phase: nmg.phase, stationType: nmg.stationType,
+          ingOptions: nmg.ingOptions, amtOptions: nmg.amtOptions,
+          correctIng: nmg.correctIng, correctAmt: nmg.correctAmt,
+          parsed: nmg.parsed,
+          feedback: nmg.feedback, feedbackMsg: nmg.feedbackMsg,
+          feedbackTimer: nmg.feedbackTimer || 0,
+          shakeTimer: nmg.shakeTimer || 0,
+          lastResult: null, selectedIng: null, buttons: [],
+          cur: nmg.parsed ? { text: nmg.parsed.name } : null,
+        };
+      } else {
+        // Update mutable fields only (preserve buttons layout)
+        state.miniGame.phase        = nmg.phase;
+        state.miniGame.feedback     = nmg.feedback;
+        state.miniGame.feedbackMsg  = nmg.feedbackMsg;
+        // Only update feedbackTimer from host if client hasn't already counted it down
+        if (!state.miniGame.feedbackTimer || nmg.feedbackTimer > state.miniGame.feedbackTimer) {
+          state.miniGame.feedbackTimer = nmg.feedbackTimer;
+        }
+      }
+    } else if (!nmg?.active) {
+      if (state.miniGame?.player?.id === state.localPlayerIdx) {
+        state.miniGame = null;
+      }
+    }
+
+    // Sync floats received (host adds them; broadcast not needed — clients generate locally)
+    // Phase change: if host says 'done' or 'failed', show end screen
+  }
+
+  function setMpInteractCallback(fn) { _mpInteractCallback = fn; }
 
   function isMiniGameActive() { return !!state.miniGame?.active; }
 
@@ -832,19 +1236,40 @@ const Game = (() => {
   }
 
   function drawScoreStrip(){
-    const p=state.player;
     const t=Math.max(0,Math.ceil(state.time));
     const timeStr=`${Math.floor(t/60)}:${(t%60).toString().padStart(2,'0')}`;
-    // Hearts
-    ctx.font='bold 14px monospace'; ctx.textAlign='left'; ctx.textBaseline='middle';
-    const maxH = p.maxHearts || HEARTS_MAX;
-    for(let i=0;i<maxH;i++){
-      ctx.fillStyle = i<p.hearts ? '#EF4444' : '#3A1010';
-      ctx.fillText('♥', 10+i*20, 16);
+    ctx.textBaseline='middle';
+
+    if (state.mpMode) {
+      // MP: show each player's colour tag + hearts side by side
+      let hx = 8;
+      state.players.forEach((pl, i) => {
+        const col = PLAYER_COLORS[i] || '#FF6B6B';
+        ctx.fillStyle = col; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'left';
+        ctx.fillText(`P${i+1}`, hx, 16); hx += 20;
+        const maxH = pl.maxHearts || HEARTS_MAX;
+        for (let j = 0; j < maxH; j++) {
+          ctx.fillStyle = j < pl.hearts ? col : '#3A1010';
+          ctx.font = 'bold 11px monospace';
+          ctx.fillText('♥', hx + j*13, 16);
+        }
+        hx += maxH * 13 + 6;
+      });
+    } else {
+      // SP: single hearts row
+      const p = state.player;
+      ctx.font='bold 14px monospace'; ctx.textAlign='left';
+      const maxH = p.maxHearts || HEARTS_MAX;
+      for(let i=0;i<maxH;i++){
+        ctx.fillStyle = i<p.hearts ? '#EF4444' : '#3A1010';
+        ctx.fillText('♥', 10+i*20, 16);
+      }
     }
+
     // Score
     ctx.fillStyle='#FFD700'; ctx.font='bold 13px monospace'; ctx.textAlign='left';
-    ctx.fillText(`SCORE: ${state.score}`, 75, 16);
+    const scoreX = state.mpMode ? 8 + state.players.length * 70 : 75;
+    ctx.fillText(`SCORE: ${state.score}`, Math.min(scoreX, 220), 16);
     // Timer
     ctx.fillStyle=state.time<30?'#EF4444':'#F8F8F8';
     ctx.font='bold 16px monospace'; ctx.textAlign='center';
@@ -852,9 +1277,11 @@ const Game = (() => {
     // Level name
     ctx.fillStyle='#8B6040'; ctx.font='bold 11px monospace'; ctx.textAlign='right';
     ctx.fillText(`Lv${state.cfg.num} ${state.cfg.name}`, 890, 16);
-    // High score
-    const hs=Storage.getHighScore(state.levelNum);
-    if(hs){ ctx.fillStyle='#5A3A20'; ctx.font='10px monospace'; ctx.textAlign='right'; ctx.fillText(`BEST: ${hs}`,890,30); }
+    // High score (SP only)
+    if (!state.mpMode) {
+      const hs=Storage.getHighScore(state.levelNum);
+      if(hs){ ctx.fillStyle='#5A3A20'; ctx.font='10px monospace'; ctx.textAlign='right'; ctx.fillText(`BEST: ${hs}`,890,30); }
+    }
   }
 
   // ── Draw one station ────────────────────────────────────
@@ -911,9 +1338,24 @@ const Game = (() => {
     }
 
     if(s.type===ST.COUNTER && s.item){
-      ctx.fillStyle=s.item.color||'#fff';
+      // Coloured dot to show something is here
+      ctx.fillStyle=s.item.color||'#D4A96A';
       ctx.beginPath(); ctx.arc(s.x+s.w/2,s.y+s.h/2,12,0,Math.PI*2); ctx.fill();
       ctx.strokeStyle='#0A0500'; ctx.lineWidth=2; ctx.stroke();
+      // Label above station: drink name + step progress
+      const it = s.item;
+      const prog = it.steps ? it.step / it.steps.length : 0;
+      const labelW = s.w + 14, labelH = 30, labelX = s.x - 7, labelY = s.y - 36;
+      ctx.fillStyle='rgba(10,5,0,0.82)';
+      rrect(labelX, labelY, labelW, labelH, 4, 'rgba(10,5,0,0.82)', it.color||'#D4A96A', 1.5);
+      ctx.fillStyle=it.color||'#FFD700'; ctx.font='bold 7px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText((it.drinkName||'?').substring(0,14), s.x+s.w/2, labelY+9);
+      ctx.fillStyle='#C0B080'; ctx.font='6px monospace';
+      ctx.fillText(`step ${it.step||0}/${it.steps?it.steps.length:1}`, s.x+s.w/2, labelY+21);
+      // Mini progress bar
+      ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(s.x+4, labelY+27, s.w-8, 3);
+      ctx.fillStyle=it.color||'#74B9FF'; ctx.fillRect(s.x+4, labelY+27, (s.w-8)*prog, 3);
     }
 
     // "E" prompt
@@ -1257,8 +1699,8 @@ const Game = (() => {
   // ── SNES player sprite ───────────────────────────────────
   function drawPlayer(p){
     const {x,y,radius,color,walkCycle,holding,busy}=p;
-    // Cosmetics
-    const equipped = Storage.getEquipped();
+    // Cosmetics — use p.cosmetics if set (MP remote players), else local storage
+    const equipped = p.cosmetics || Storage.getEquipped();
     const ec = {...equipped, ...(p._previewCosmetics||{})};
     const shopItems = Storage.getShopItems();
     const hatItem   = shopItems.find(i=>i.id===ec.hat);
@@ -1507,7 +1949,7 @@ const Game = (() => {
     const bubbleCol = pct>0.5?'#2A6030':pct>0.25?'#7A6010':'#7A1010';
     const headY = 484;
     const shakeX = (pct<0.15 && Math.sin(Date.now()/60)>0) ? 2 : 0;
-    const claimed = state.player.holding?.orderId === o.id;
+    const claimed = state.players.some(p => p.holding?.orderId === o.id);
     const col = o.custColor || '#74B9FF';
 
     ctx.save(); ctx.translate(shakeX, 0);
@@ -1966,14 +2408,15 @@ const Game = (() => {
   }
 
   function render(){
-    if(!canvas||!state.player) return;
+    if(!canvas||!state.players) return;
     drawWalls();
     drawFloor();
     if (state.cfg.theme === 'volcano') drawLavaFloor();
     state.stations.forEach(drawStation);
     drawTargetArrows();
     drawCustomers();
-    drawPlayer(state.player);
+    // Draw all players (remote players rendered with their cosmetics from net state)
+    state.players.forEach(drawPlayer);
     state.floats.forEach(f=>{
       ctx.globalAlpha=Math.max(0,f.alpha);
       ctx.fillStyle=f.color||'#FFD700'; ctx.font=`bold ${f.size||18}px monospace`;
@@ -1987,10 +2430,13 @@ const Game = (() => {
     drawScanlines();
   }
 
-  function getPhase()      { return state.phase; }
-  function getScore()      { return state.score; }
-  function getLevelCount() { return LEVEL_CONFIGS.length; }
-  function isLevelPassed() { return state.score>=state.cfg.passScore; }
+  function getPhase()         { return state.phase; }
+  function getScore()         { return state.score; }
+  function getLevelCount()    { return LEVEL_CONFIGS.length; }
+  function getMpLevelCount()  { return MP_LEVEL_CONFIGS.length; }
+  function isLevelPassed()    { return state.score>=state.cfg.passScore; }
+  function getMpLevels()      { return MP_LEVEL_CONFIGS; }
+  function getAllLevelNames()  { return [...LEVEL_CONFIGS, ...MP_LEVEL_CONFIGS].map(c => ({ num:c.num, name:c.name, mpOnly:!!c.mpOnly })); }
 
   function drawAvatarPreview(targetCtx, cx, cy, scale, previewCosmetics) {
     // Draw the bartender sprite on an external canvas for the shop preview
@@ -2012,10 +2458,19 @@ const Game = (() => {
   }
 
   return {
-    init, startLevel, update, render,
+    init, startLevel, startMultiplayer, update, clientUpdate, render,
     handleKeyDown, handleClick, isMiniGameActive,
-    getPhase, getScore, getLevelCount, isLevelPassed,
+    applyClientInput, getNetState, applyNetState, setMpInteractCallback,
+    getPhase, getScore, getLevelCount, getMpLevelCount, getMpLevels, getAllLevelNames,
+    isLevelPassed,
     isUpgradePicked: () => !!state.upgradePicked,
     drawAvatarPreview,
+    // Also wire MP_LEVEL_CONFIGS into startLevel lookups
+    _initMpLevels: () => {
+      // Append MP levels to LEVEL_CONFIGS so startLevel(7) works
+      MP_LEVEL_CONFIGS.forEach(cfg => {
+        if (!LEVEL_CONFIGS.find(c => c.num === cfg.num)) LEVEL_CONFIGS.push(cfg);
+      });
+    },
   };
 })();
