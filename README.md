@@ -6,11 +6,6 @@ A single-player **and** multiplayer bartending game inspired by Overcooked — d
 Open `index.html` in any modern browser — no server or install needed.  
 Multiplayer requires an internet connection (WebRTC peer-to-peer).
 
-## GitHub Pages
-1. Push this folder to a GitHub repo
-2. Go to **Settings → Pages → Source → main branch / root**
-3. Your game lives at `https://YOUR-USERNAME.github.io/REPO-NAME/`
-
 ---
 
 ## Controls
